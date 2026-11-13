@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --canvas-bg: #F8FAFC;
+    --sidebar-bg: #0F172A;
+    --saas-accent: #10B981;
+    --tenant-accent: #10B981;
+  }
+
+  body {
+    background-color: var(--canvas-bg);
+    color: #0F172A;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+

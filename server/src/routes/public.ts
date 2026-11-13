@@ -1,0 +1,84 @@
+import { Router, Request, Response } from "express";
+import prisma from "../prisma";
+
+const router = Router();
+
+// Public customer menu endpoint: GET /api/menu/:qrToken
+router.get("/:qrToken", async (req: Request, res: Response) => {
+  const { qrToken } = req.params;
+
+  try {
+    const table = await prisma.table.findUnique({
+      where: { qrToken },
+      include: {
+        restaurant: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            description: true,
+            accentColor: true,
+            currency: true,
+            logoUrl: true,
+            bannerUrl: true,
+            address: true,
+            wifiPassword: true,
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    if (!table) {
+      return res.status(404).json({
+        error: "Invalid QR code. Table not found or link has expired.",
+        code: "TABLE_NOT_FOUND",
+      });
+    }
+
+    if (!table.isActive) {
+      return res.status(403).json({
+        error: "This table is currently not in service. Please notify staff.",
+        code: "TABLE_INACTIVE",
+      });
+    }
+
+    if (!table.restaurant.isActive) {
+      return res.status(403).json({
+        error: "This restaurant is currently closed for orders.",
+        code: "RESTAURANT_INACTIVE",
+      });
+    }
+
+    // Fetch active categories and dishes
+    const categories = await prisma.category.findMany({
+      where: {
+        restaurantId: table.restaurant.id,
+        isActive: true,
+      },
+      orderBy: { sortOrder: "asc" },
+      include: {
+        dishes: {
+          orderBy: { createdAt: "asc" },
+        },
+      },
+    });
+
+    return res.json({
+      restaurant: table.restaurant,
+      table: {
+        id: table.id,
+        tableNumber: table.tableNumber,
+        label: table.label,
+        qrToken: table.qrToken,
+      },
+      categories,
+    });
+  } catch (error) {
+    console.error("Public menu error:", error);
+    return res.status(500).json({ error: "Failed to load restaurant menu" });
+  }
+});
+
+export default router;
+
