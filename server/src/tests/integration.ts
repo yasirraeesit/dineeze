@@ -174,7 +174,7 @@ async function runIntegrationTests() {
         reject(new Error("Did not receive 'order_status_updated' socket event within 5s"));
       }, 5000);
 
-      socketClient.on("order_status_updated", (data) => {
+      socketClient.on("order_status_updated", (data: any) => {
         clearTimeout(timeout);
         resolve(data);
       });
