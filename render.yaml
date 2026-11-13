@@ -5,7 +5,7 @@ services:
     region: ohio # AWS us-east-2 matching Neon PostgreSQL
     plan: free
     rootDir: server
-    buildCommand: npm install && npm run build
+    buildCommand: npm install --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /health
     autoDeploy: true
