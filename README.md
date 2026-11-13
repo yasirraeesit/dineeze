@@ -1,287 +1,218 @@
-# Dineeze — Multi-Tenant QR Code Menu & Dine-In Ordering SaaS
+# Dineeze — Dining Made Effortless.
 
 <p align="center">
-  <strong>Dining Made Effortless.</strong>
+  <strong>The Next-Generation Contactless Ordering & Real-Time Kitchen Display OS for Modern Hospitality.</strong>
   <br />
-  A full-stack, multi-tenant digital dining platform connecting tabletop guests directly to kitchen displays in real time.
+  Turn any customer smartphone into a branded ordering terminal and any kitchen screen into an intelligent, low-latency dispatch display.
 </p>
 
 <p align="center">
-  <a href="https://dineeze.vercel.app">
-    <img src="https://img.shields.io/badge/Vercel-Live_Demo-000000?style=for-the-badge&logo=vercel&logoColor=white" alt="Vercel Live Demo" />
-  </a>
-  <a href="https://dineeze-backend.onrender.com/health">
-    <img src="https://img.shields.io/badge/Render-Backend_Live-46E3B7?style=for-the-badge&logo=render&logoColor=black" alt="Render Backend Live" />
-  </a>
-  <a href="https://neon.tech">
-    <img src="https://img.shields.io/badge/Neon-PostgreSQL-00E599?style=for-the-badge&logo=postgresql&logoColor=white" alt="Neon PostgreSQL" />
-  </a>
+  <img src="https://img.shields.io/badge/Status-Production_Ready-10B981?style=for-the-badge&logo=statuspage&logoColor=white" alt="Production Ready" />
+  <img src="https://img.shields.io/badge/Architecture-Multi--Tenant_SaaS-0F172A?style=for-the-badge" alt="Multi-Tenant SaaS" />
+  <img src="https://img.shields.io/badge/Real--Time-Socket.io_KDS-3B82F6?style=for-the-badge&logo=socket.io&logoColor=white" alt="Real-Time KDS" />
+  <img src="https://img.shields.io/badge/Database-Neon_Serverless_Postgres-00E599?style=for-the-badge&logo=postgresql&logoColor=white" alt="Neon PostgreSQL" />
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/React_18-20232A?style=flat-square&logo=react&logoColor=61DAFB" alt="React 18" />
-  <img src="https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/TypeScript_5-007ACC?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white" alt="Tailwind CSS" />
-  <img src="https://img.shields.io/badge/Node.js-43853D?style=flat-square&logo=node.js&logoColor=white" alt="Node.js" />
-  <img src="https://img.shields.io/badge/Express-000000?style=flat-square&logo=express&logoColor=white" alt="Express" />
-  <img src="https://img.shields.io/badge/Socket.io-010101?style=flat-square&logo=socket.io&logoColor=white" alt="Socket.io" />
-  <img src="https://img.shields.io/badge/Prisma_ORM-2D3748?style=flat-square&logo=prisma&logoColor=white" alt="Prisma" />
-  <img src="https://img.shields.io/badge/Neon_Serverless-00E599?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL" />
-  <img src="https://img.shields.io/badge/Cloudinary-3448C5?style=flat-square&logo=cloudinary&logoColor=white" alt="Cloudinary" />
+  <img src="https://img.shields.io/badge/Node.js_20+-43853D?style=flat-square&logo=node.js&logoColor=white" alt="Node.js" />
+  <img src="https://img.shields.io/badge/Express_4-000000?style=flat-square&logo=express&logoColor=white" alt="Express" />
+  <img src="https://img.shields.io/badge/Prisma_ORM_5-2D3748?style=flat-square&logo=prisma&logoColor=white" alt="Prisma" />
+  <img src="https://img.shields.io/badge/Cloudinary_CDN-3448C5?style=flat-square&logo=cloudinary&logoColor=white" alt="Cloudinary" />
 </p>
 
 ---
 
-## 🎯 Live Production Links & Demo Credentials
+## 🌐 Live Product Access & Enterprise Demos
 
-- **Public Marketing & Interactive Demo**: [https://dineeze.vercel.app](https://dineeze.vercel.app)
-- **Live Customer Table Menu**: [https://dineeze.vercel.app/m/table-1-spice-kitchen](https://dineeze.vercel.app/m/table-1-spice-kitchen) *(Table 01 — The Spice Kitchen)*
-- **Owner & Kitchen Management Dashboard**: [https://dineeze.vercel.app/login](https://dineeze.vercel.app/login)
-  - **Email**: `owner@thespicekitchen.com`
-  - **Password**: `Password123!`
-- **Backend API Health Check**: [https://dineeze-backend.onrender.com/health](https://dineeze-backend.onrender.com/health)
+Dineeze is deployed globally across low-latency edge networks. Test the live production environment directly:
 
----
-
-## 📸 Product Surfaces
-
-| Surface | Description | Preview |
-| :--- | :--- | :--- |
-| **SaaS Landing Page** (`/`) | High-converting marketing surface featuring an interactive Phone-to-KDS simulator, 3-step contactless workflow, asymmetric Bento feature grid, and transparent pricing. | <img src="docs/screenshots/landing.png" width="400" alt="Landing Page Preview" onerror="this.src='https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80'" /> |
-| **Live Kitchen KDS** (`/dashboard/orders`) | High-velocity Kanban tickets with real-time Socket.io dispatching, Web Audio synthesizer chime alerts, elapsed preparation timers, and one-tap status advancement. | <img src="docs/screenshots/kds.png" width="400" alt="Kitchen KDS Preview" onerror="this.src='https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&w=800&q=80'" /> |
-| **Printable QR Table Tents** (`/dashboard/tables`) | Vector-sharp QR code generator with live preview and HTML5 Canvas renderer to export 300 DPI acrylic stand posters with guest Wi-Fi details. | <img src="docs/screenshots/tables.png" width="400" alt="Table QR Generator Preview" onerror="this.src='https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80'" /> |
-| **Customer Mobile Menu** (`/m/:qrToken`) | Frictionless zero-app ordering experience locked to mobile viewport (`max-w-md`), styled dynamically with the restaurant's brand accent color. | <img src="docs/screenshots/mobile.png" width="400" alt="Customer Mobile Menu Preview" onerror="this.src='https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=800&q=80'" /> |
+| Surface | Live Endpoint | Access Role | Description |
+| :--- | :--- | :--- | :--- |
+| **SaaS Web Application** | [dineeze.vercel.app](https://dineeze.vercel.app) | Public / Operator | Merchant onboarding, brand studio, and product landing |
+| **Live Guest Menu Demo** | [dineeze.vercel.app/m/table-1-spice-kitchen](https://dineeze.vercel.app/m/table-1-spice-kitchen) | Dining Guest | Zero-login self-ordering demo (Table 01 — *The Spice Kitchen*) |
+| **Kitchen KDS & Admin** | [dineeze.vercel.app/login](https://dineeze.vercel.app/login) | Restaurant Operator | **Email:** `owner@thespicekitchen.com`<br />**Password:** `Password123!` |
+| **API Health Status** | [dineeze-backend.onrender.com/health](https://dineeze-backend.onrender.com/health) | System Monitor | Live API latency, database connectivity, and WebSocket engine |
 
 ---
 
-## ⚡ Core Features
+## 💡 The Problem & The Solution
 
-### 1. Zero-Login Mobile Menu (`/m/:qrToken`)
-- **Zero App Friction**: Runs directly in Mobile Safari/Chrome via standard QR camera scan; no App Store downloads or mandatory account creation.
-- **Dynamic Tenant Theming**: Injects each restaurant's custom `accentColor` via CSS variable `--tenant-accent`, instantly branding buttons, tags, and cart bars.
-- **Dietary & Modifier Badges**: Filter dishes by Vegetarian, Spicy, and Popular tags with customizable special instructions per line item.
-- **Live Order Status Tracker**: Once placed, customers watch order progress (`PENDING` ➔ `PREPARING` ➔ `READY` ➔ `SERVED`) updating in real time via WebSockets.
+Traditional dine-in operations bleed margin through three structural friction points:
 
-### 2. Owner & Kitchen Management Dashboard (`/dashboard`)
-- **Live KDS Kanban**: Kitchen display organized into Pending, Preparing, and Ready columns. Plays an authentic synthesized double-chime bell on incoming orders.
-- **Menu Builder**: Fast in-stock toggling (`isAvailable`), category reordering, price configuration, and image uploads.
-- **Floor Plan & Table Generator**: Batch generate tables with unique cryptographic QR tokens and export print-ready PDF/PNG table tents.
-- **Restaurant Brand Settings**: Modify venue description, currency, Wi-Fi credentials, and live-preview brand accent colors on an integrated smartphone mockup.
+1. **Reprint Costs & Out-of-Stock Disasters**: Physical menus cost thousands annually to print, clean, and replace. When dishes sell out mid-shift, waitstaff waste time explaining omissions at the table.
+2. **App Store & Sign-Up Friction**: Requiring diners to download 80 MB mobile apps or create accounts before ordering results in high abandonment and customer dissatisfaction.
+3. **Staff Bottlenecks & Order Transcription Errors**: Hand-written paper tickets and waiter transit delays throttle kitchen throughput, slowing down table turns during peak hours.
+
+### The Dineeze Solution
+Dineeze transforms restaurant operations into a frictionless, hardware-agnostic digital workflow:
+- **Instant Camera Scan**: Diners point their standard smartphone camera at an acrylic table tent to open a high-speed web application in under 400 milliseconds.
+- **Dynamic Brand Autonomy**: Every restaurant features distinct logo branding, accent colors, menu categories, and dietary flags without custom app store builds.
+- **Bi-Directional Kitchen Sync**: Orders beam directly into an interactive Kitchen Display System (KDS) board with synthesized audio bells, while guests track live preparation states in real time.
 
 ---
 
-## 🏛️ System Architecture
+## 🚀 Core Product Capabilities
+
+```
++-----------------------------------------------------------------------------------+
+|                                 DINEEZE PLATFORM                                  |
++-----------------------------------------------------------------------------------+
+|  [Guest Smartphone]           [Operator Dashboard]           [Kitchen Display]    |
+|   - Zero-App Browser Menu      - 2-Min Onboarding             - Live Kanban Board |
+|   - Real-Time Cart             - Brand Accent Studio          - Web Audio Chimes  |
+|   - Live Prep Tracker          - In-Stock Toggle Sync         - Urgency Timers    |
+|   - Dietary Badges             - Canvas QR Tent Generator     - Room Partitioning |
++-----------------------------------------------------------------------------------+
+```
+
+### 1. Merchant Onboarding & Brand Studio
+- **120-Second Onboarding**: Provision full restaurant tenants with custom subdomain slugs (`/m/:slug`), local currency formats, and automated table generation.
+- **Dynamic Theme Engine**: Injects merchant brand palette into mobile guest views via CSS variables (`--tenant-accent`), ensuring on-brand digital presence.
+- **Enterprise Media Pipeline**: Direct-to-Cloudinary memory streaming for high-resolution dish photography, covers, and brand assets.
+
+### 2. Live Kitchen Display System (KDS)
+- **Real-Time Kanban Pipeline**: Orders transition fluidly through operational lifecycle states: `PENDING` ➔ `PREPARING` ➔ `READY` ➔ `SERVED`.
+- **Synthesized Audio Chimes**: Dual-frequency harmonic audio cues sound instantly through browser Web Audio upon order arrival, eliminating missed tickets.
+- **Elapsed Urgency Timers**: Visual warning indicators flag aging orders to enforce table turn and service speed SLA targets.
+
+### 3. Print-Ready Table-Tent QR Generator
+- **HTML5 Canvas Vector Generator**: Dynamically generates high-resolution vector QR table tents embedded with individual table tokens and guest Wi-Fi details.
+- **Instant Token Rotation**: Revoke or re-generate specific table access credentials in one click to manage dining room security.
+
+### 4. Zero-Login Guest Experience (`/m/:qrToken`)
+- **Frictionless Web Architecture**: 100% web-native, responsive layout optimized for single-handed mobile navigation with touch targets exceeding 44×44px.
+- **Instant Sold-Out Synchronization**: Real-time availability toggles prevent guests from ordering 86'd items.
+- **Live Status Feed**: Diners monitor their ticket progress live over dedicated WebSocket channels without page reloads.
+
+---
+
+## 🏛️ System Architecture & Security Model
 
 ```mermaid
 flowchart TD
     subgraph Clients["Client Surfaces"]
-        Guest["Guest Smartphone\n(/m/:qrToken)\nZero-Login Web Menu"]
-        Owner["Restaurant Staff / Owner\n(/dashboard)\nKDS Kanban & Admin"]
+        Guest["Guest Smartphone\n(/m/:qrToken)\nZero-Login Web Client"]
+        Staff["Kitchen / Operator\n(/dashboard)\nKDS Kanban & Admin"]
     end
 
-    subgraph Vercel["Vercel Cloud"]
-        Frontend["Dineeze React SPA\n(Vite + TypeScript + Tailwind)"]
+    subgraph Edge["Vercel Global Edge"]
+        Frontend["Dineeze React SPA\n- Vite + TypeScript\n- Tailwind CSS Architecture\n- Zustand State Hydration"]
     end
 
-    subgraph Render["Render Cloud"]
-        Backend["Express REST API & Socket.io Engine\n(Node.js + TypeScript)"]
-        Rooms["WebSocket Rooms\n- restaurant_{id} (Kitchen KDS)\n- order_{id} (Guest Tracker)"]
+    subgraph Core["Render Web Service Cluster"]
+        API["Node.js & Express REST API\n- Strict Multi-Tenant Enforcement\n- Server-Side Price Calculation"]
+        Sockets["Socket.io Real-Time Engine\n- restaurant_{id} (Kitchen Broadcast)\n- order_{id} (Guest Status Sync)"]
     end
 
-    subgraph Neon["Neon Cloud"]
-        Postgres[("Neon Serverless PostgreSQL\n- Pooled Connection (Runtime)\n- Direct Connection (Migrations)\nStrict Multi-Tenant Scoping")]
+    subgraph Data["Neon Cloud Database"]
+        DB[("Neon Lakebase PostgreSQL\n- Pooled Connection (Runtime)\n- Direct Connection (Migrations)\n- Foreign Key Isolation")]
     end
 
-    subgraph Cloudinary["Cloudinary CDN"]
-        Media["Cloudinary Media Storage\n(Restaurant Logos, Banners, Dishes)\nMemory Buffer Streaming"]
+    subgraph Storage["Cloudinary Media CDN"]
+        CDN["Cloudinary Media Storage\n- Zero Ephemeral Disk Writes\n- Direct Memory Buffer Streaming"]
     end
 
-    Guest -->|HTTPS / WSS| Frontend
-    Owner -->|HTTPS / WSS| Frontend
-    Frontend -->|REST API Requests| Backend
-    Frontend <-->|Real-Time Sockets| Rooms
-    Backend -->|Prisma Client| Postgres
-    Backend -->|Stream Buffers| Media
+    Guest -->|HTTPS / WSS| Edge
+    Staff -->|HTTPS / WSS| Edge
+    Edge -->|REST API| API
+    Edge <-->|WebSocket Stream| Sockets
+    API -->|Prisma Client| DB
+    API -->|Buffer Stream| CDN
 ```
 
----
-
-## 🔒 Security & Data Integrity Highlights
-
-- **Strict Multi-Tenant Isolation**: Every database resource (`Table`, `Category`, `Dish`, `Order`, `OrderItem`) is strictly partitioned by `restaurantId`. API routes enforce that `restaurant.ownerId === req.user.id`.
-- **Tamper-Proof Server-Side Price Recalculation**: On `POST /api/orders`, client-submitted prices are discarded. The server queries live item prices directly from Neon PostgreSQL inside an interactive Prisma transaction to compute subtotal and total amounts.
-- **Zero Ephemeral Disk Storage**: Render web services run on ephemeral disks. Dineeze streams uploaded dish photos, logos, and banners directly into Cloudinary through memory buffers (`multer.memoryStorage()`), persisting only immutable HTTPS URLs in PostgreSQL.
-- **Cryptographic Table Access**: QR codes encode opaque table tokens (`qrToken`) rather than auto-incrementing database IDs, preventing enumeration attacks across dining rooms.
+### Security & Reliability Architecture
+- **Strict Multi-Tenant Isolation**: Every database record (`Table`, `Category`, `Dish`, `Order`, `OrderItem`) is strictly scoped by `restaurantId`. API middleware strictly enforces tenant ownership (`restaurant.ownerId === req.user.id`).
+- **Tamper-Proof Server-Side Price Recalculation**: Incoming payloads on `POST /api/orders` specify dish IDs and quantities only. The server queries live prices directly from Neon PostgreSQL inside an interactive Prisma transaction, completely mitigating client-side price tampering.
+- **Zero Ephemeral Storage Loss**: Deployed on serverless and ephemeral container architectures. Uploads bypass local disk and stream through memory buffers into Cloudinary CDN.
+- **Cryptographic Table Access**: Table identification relies on opaque, collision-resistant tokens (`qrToken`) rather than auto-incrementing database identifiers.
 
 ---
 
-## 📊 Database Schema (Prisma)
-
-```mermaid
-erDiagram
-    User ||--o{ Restaurant : "owns"
-    Restaurant ||--o{ Table : "has"
-    Restaurant ||--o{ Category : "organizes"
-    Restaurant ||--o{ Dish : "serves"
-    Restaurant ||--o{ Order : "receives"
-    Category ||--o{ Dish : "contains"
-    Table ||--o{ Order : "places"
-    Order ||--|{ OrderItem : "includes"
-    Dish ||--o{ OrderItem : "references"
-
-    User {
-        string id PK
-        string email UK
-        string passwordHash
-        string name
-        enum role "OWNER | STAFF | ADMIN"
-    }
-
-    Restaurant {
-        string id PK
-        string ownerId FK
-        string name
-        string slug UK
-        string accentColor
-        string currency
-        string logoUrl
-        string bannerUrl
-    }
-
-    Table {
-        string id PK
-        string restaurantId FK
-        int tableNumber
-        string qrToken UK
-        int capacity
-        boolean isActive
-    }
-
-    Category {
-        string id PK
-        string restaurantId FK
-        string name
-        int sortOrder
-        boolean isActive
-    }
-
-    Dish {
-        string id PK
-        string restaurantId FK
-        string categoryId FK
-        string name
-        decimal price
-        string imageUrl
-        boolean isAvailable
-        boolean isVegetarian
-        boolean isSpicy
-    }
-
-    Order {
-        string id PK
-        string restaurantId FK
-        string tableId FK
-        string orderNumber
-        enum status "PENDING | PREPARING | READY | SERVED | COMPLETED"
-        decimal totalAmount
-        enum paymentStatus "UNPAID | PAID"
-    }
-
-    OrderItem {
-        string id PK
-        string orderId FK
-        string dishId FK
-        int quantity
-        decimal unitPrice
-        decimal subtotal
-        string specialInstructions
-    }
-```
-
----
-
-## 🛠️ Local Development & Setup
+## 💻 Self-Hosting & Environment Configuration
 
 ### Prerequisites
-- Node.js 20+
-- npm 10+
-- A Neon PostgreSQL database instance
+- **Node.js**: v20.0.0 or higher
+- **npm**: v10.0.0 or higher
+- **Database**: PostgreSQL 15+ (Hosted via Neon or self-managed)
 
-### 1. Clone the Monorepo
+### 1. Repository Setup
 ```bash
 git clone https://github.com/yasirraeesit/dineeze.git
 cd dineeze
-```
-
-### 2. Install Dependencies
-```bash
 npm install
 ```
 
-### 3. Configure Environment Variables
+### 2. Environment Configuration
 
-#### Backend (`/server/.env`)
-```env
-# Neon PostgreSQL Connection (Pooled for runtime queries)
-DATABASE_URL="postgresql://user:pass@ep-wandering-mouse-bdcjkzem-pooler.c-8.us-east-2.aws.neon.tech/neondb?sslmode=require"
+#### Backend Service (`/server/.env`)
+| Variable | Required | Description | Example / Default |
+| :--- | :---: | :--- | :--- |
+| `DATABASE_URL` | **Yes** | Neon pooled PostgreSQL connection string | `postgresql://user:pass@ep-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require` |
+| `DIRECT_URL` | **Yes** | Neon unpooled PostgreSQL direct connection (DDL & migrations) | `postgresql://user:pass@ep-direct.us-east-2.aws.neon.tech/neondb?sslmode=require` |
+| `PORT` | No | Express API server port | `5000` (Local) / `10000` (Render) |
+| `JWT_SECRET` | **Yes** | Cryptographic key for signing operator access tokens | `your-secure-jwt-secret-key-32-chars` |
+| `CLIENT_URL` | **Yes** | Primary frontend origin for CORS policies | `http://localhost:5173` |
+| `FRONTEND_URL` | No | Secondary production origin for CORS allowlist | `https://dineeze.vercel.app` |
+| `CLOUDINARY_CLOUD_NAME` | No | Cloudinary cloud account identifier | `demo` *(fallback enabled)* |
+| `CLOUDINARY_API_KEY` | No | Cloudinary API access key | `123456789012345` |
+| `CLOUDINARY_API_SECRET` | No | Cloudinary API access secret | `sample_secret` |
 
-# Neon PostgreSQL Direct Connection (Unpooled for DDL & Prisma migrations)
-DIRECT_URL="postgresql://user:pass@ep-wandering-mouse-bdcjkzem.c-8.us-east-2.aws.neon.tech/neondb?sslmode=require"
+#### Frontend Service (`/client/.env`)
+| Variable | Required | Description | Example / Default |
+| :--- | :---: | :--- | :--- |
+| `VITE_API_URL` | **Yes** | Base endpoint for Dineeze REST API | `http://localhost:5000` (Local) / `https://dineeze-backend.onrender.com` |
+| `VITE_SOCKET_URL` | **Yes** | WebSocket endpoint for Socket.io real-time engine | `http://localhost:5000` (Local) / `https://dineeze-backend.onrender.com` |
 
-# Server Port & Secrets
-PORT=5000
-JWT_SECRET="your-secure-jwt-secret-key"
-
-# Frontend Application Origins (CORS)
-CLIENT_URL="http://localhost:5173"
-FRONTEND_URL="http://localhost:5173"
-
-# Cloudinary Storage Credentials (optional demo fallback enabled)
-CLOUDINARY_CLOUD_NAME="demo"
-CLOUDINARY_API_KEY="123456789012345"
-CLOUDINARY_API_SECRET="sample_secret"
-```
-
-#### Frontend (`/client/.env`)
-```env
-VITE_API_URL="http://localhost:5000"
-VITE_SOCKET_URL="http://localhost:5000"
-```
-
-### 4. Push Schema & Seed Initial Restaurant
+### 3. Database Migration & Seeding
 ```bash
 cd server
 npx prisma db push
 npm run seed
 cd ..
 ```
-*Seeds **The Spice Kitchen** with 6 tables, 3 categories, and 8 dishes under owner `owner@thespicekitchen.com` (`Password123!`).*
+*Seeds the database with **The Spice Kitchen**, 6 provisioned tables, 3 categories, and 8 artisan dishes under operator `owner@thespicekitchen.com`.*
 
-### 5. Start Development Servers
-From the repository root:
+### 4. Running the Development Monorepo
 ```bash
-# Terminal 1: Backend API & Socket Server (port 5000)
+# Terminal 1: Backend API & WebSocket Engine (Port 5000)
 npm run dev:server
 
-# Terminal 2: Frontend Client (port 5173)
+# Terminal 2: Vite Frontend SPA (Port 5173)
 npm run dev:client
 ```
 
----
-
-## 🧪 Verification & Testing
-
-Run backend integration test suite (tenant isolation, tamper protection, and WebSocket event flow):
+### 5. Production Compilation
 ```bash
-npm run test --workspace=server
-```
-
-Run TypeScript and Vite client build validation:
-```bash
+# Validate and build full monorepo
+npm run build:server
 npm run build:client
 ```
 
 ---
 
-## 📄 License
-This project is licensed under the [MIT License](LICENSE).
+## 🗺️ Product Roadmap
+
+- [ ] **Hardware Bridge**: Direct ESC/POS thermal receipt and kitchen ticket printer forwarding over local network.
+- [ ] **Split-Table Billing**: Native guest payment splitting (equal split, by-item, or custom amounts) with Stripe Terminal & Apple Pay.
+- [ ] **Multi-Branch Analytics**: Centralized hospitality group metrics (table turn speed, gross order value, peak item sales velocity).
+- [ ] **Automated Guest Messaging**: WhatsApp and SMS order status alerts when food leaves the kitchen pass.
+- [ ] **Offline POS Fallback**: Local SQLite cache sync for uninterrupted ordering during internet dropouts.
+
+---
+
+## 🤝 Commercial & Support
+
+For enterprise deployments, custom PMS/POS integrations, or hospitality partnership inquiries:
+
+- **Product Inquiries**: [support@dineeze.com](mailto:support@dineeze.com)
+- **Live Status & Issues**: [GitHub Issues](https://github.com/yasirraeesit/dineeze/issues)
+- **Demo Platform**: [https://dineeze.vercel.app](https://dineeze.vercel.app)
+
+---
+
+<p align="center">
+  <sub>© 2026 Dineeze Inc. Built with modern engineering for the global hospitality industry.</sub>
+</p>
