@@ -23,6 +23,7 @@ import useAuthStore from "../stores/authStore";
 import api from "../utils/api";
 import audioChime from "./AudioChime";
 import useSocket from "../hooks/useSocket";
+import { formatCurrency } from "../utils/currency";
 
 interface DashboardKPIs {
   todayOrdersCount: number;
@@ -496,7 +497,7 @@ export const DashboardLayout: React.FC = () => {
                   Today&apos;s Revenue
                 </p>
                 <p className="text-xl sm:text-2xl font-extrabold font-display tabular-nums text-slate-950 mt-1">
-                  ${kpis.todayRevenue.toFixed(2)}
+                  {formatCurrency(kpis.todayRevenue, activeRestaurant?.currency)}
                 </p>
                 <p className="text-[10px] text-slate-400 mt-0.5 font-medium">
                   {activeRestaurant?.currency || "USD"} table sales

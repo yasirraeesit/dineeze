@@ -17,6 +17,7 @@ import api from "../../utils/api";
 import useAuthStore from "../../stores/authStore";
 import useSocket from "../../hooks/useSocket";
 import audioChime from "../../components/AudioChime";
+import { formatCurrency } from "../../utils/currency";
 
 interface OrderItem {
   id: string;
@@ -45,6 +46,12 @@ interface Order {
     id?: string;
     tableNumber: number;
     label?: string;
+  };
+  restaurant?: {
+    id?: string;
+    name?: string;
+    currency?: string;
+    accentColor?: string;
   };
   items: OrderItem[];
 }
@@ -302,7 +309,7 @@ export const OrdersKDSPage: React.FC = () => {
                         <span>{diffMinutes}m</span>
                       </span>
                       <p className="text-[11px] font-bold text-slate-700">
-                        ${Number(order.totalAmount).toFixed(2)}
+                        {formatCurrency(order.totalAmount, order.restaurant?.currency || activeRestaurant?.currency)}
                       </p>
                     </div>
                   </div>
@@ -348,7 +355,7 @@ export const OrdersKDSPage: React.FC = () => {
                           )}
                         </div>
                         <span className="text-slate-400 text-[11px] font-mono shrink-0">
-                          ${Number(item.subtotal).toFixed(2)}
+                          {formatCurrency(item.subtotal, order.restaurant?.currency || activeRestaurant?.currency)}
                         </span>
                       </div>
                     ))}
@@ -508,7 +515,9 @@ export const OrdersKDSPage: React.FC = () => {
                   {order.items.map((item) => (
                     <div key={item.id} className="flex justify-between font-medium">
                       <span>{item.quantity}x {item.dish.name}</span>
-                      <span className="text-slate-400 text-[11px]">${Number(item.subtotal).toFixed(2)}</span>
+                      <span className="text-slate-400 text-[11px] font-mono">
+                        {formatCurrency(item.subtotal, order.restaurant?.currency || activeRestaurant?.currency)}
+                      </span>
                     </div>
                   ))}
                 </div>

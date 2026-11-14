@@ -13,7 +13,7 @@ router.use(authenticateJWT);
 const createRestaurantSchema = z.object({
   name: z.string().min(2, "Restaurant name is required"),
   slug: z.string().min(2, "Slug is required").regex(/^[a-z0-9-]+$/, "Slug must be lowercase alphanumeric with hyphens"),
-  currency: z.string().default("USD"),
+  currency: z.enum(["USD", "PKR", "INR", "GBP"]).default("USD"),
   address: z.string().optional(),
   accentColor: z.string().regex(/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/, "Valid hex color required").default("#10B981"),
   logoUrl: z.string().url().optional().or(z.literal("")),
@@ -26,7 +26,7 @@ const createRestaurantSchema = z.object({
 const updateRestaurantSchema = z.object({
   name: z.string().min(2).optional(),
   description: z.string().optional(),
-  currency: z.string().optional(),
+  currency: z.enum(["USD", "PKR", "INR", "GBP"]).optional(),
   address: z.string().optional(),
   accentColor: z.string().regex(/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/).optional(),
   logoUrl: z.string().url().optional().or(z.literal("")),

@@ -16,6 +16,7 @@ import {
 import api from "../../utils/api";
 import useAuthStore from "../../stores/authStore";
 import { getContrastTextColor } from "../../utils/color";
+import { SUPPORTED_CURRENCIES, formatCurrency } from "../../utils/currency";
 
 export const SettingsPage: React.FC = () => {
   const { activeRestaurant, updateActiveRestaurant } = useAuthStore();
@@ -216,12 +217,11 @@ export const SettingsPage: React.FC = () => {
                     onChange={(e) => setCurrency(e.target.value)}
                     className="w-full pl-9 pr-3.5 py-2 text-xs rounded-xl border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white"
                   >
-                    <option value="USD">USD ($ - United States Dollar)</option>
-                    <option value="EUR">EUR (€ - Euro)</option>
-                    <option value="GBP">GBP (£ - British Pound)</option>
-                    <option value="CAD">CAD ($ - Canadian Dollar)</option>
-                    <option value="AUD">AUD ($ - Australian Dollar)</option>
-                    <option value="INR">INR (₹ - Indian Rupee)</option>
+                    {SUPPORTED_CURRENCIES.map((curr) => (
+                      <option key={curr.code} value={curr.code}>
+                        {curr.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -447,7 +447,9 @@ export const SettingsPage: React.FC = () => {
                   <div>
                     <p className="font-display font-bold text-xs text-slate-900">Smoky Truffle Burger</p>
                     <p className="text-[10px] text-slate-400">Black angus & truffle aioli</p>
-                    <p className="text-xs font-bold text-slate-900 mt-0.5">$16.50</p>
+                    <p className="text-xs font-bold text-slate-900 mt-0.5">
+                      {formatCurrency(currency === "PKR" ? 1450 : currency === "INR" ? 450 : 16.5, currency)}
+                    </p>
                   </div>
                   <button
                     type="button"
@@ -471,7 +473,7 @@ export const SettingsPage: React.FC = () => {
                     color: contrastColor,
                   }}
                 >
-                  <span>1 Item • $16.50</span>
+                  <span>1 Item • {formatCurrency(currency === "PKR" ? 1450 : currency === "INR" ? 450 : 16.5, currency)}</span>
                   <span className="flex items-center gap-1">
                     View Order <Sparkles className="w-3 h-3" />
                   </span>

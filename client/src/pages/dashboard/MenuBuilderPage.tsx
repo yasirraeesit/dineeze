@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import api from "../../utils/api";
 import useAuthStore from "../../stores/authStore";
+import { formatCurrency } from "../../utils/currency";
 
 interface Category {
   id: string;
@@ -443,7 +444,7 @@ export const MenuBuilderPage: React.FC = () => {
                         )}
                         <div className="flex items-center gap-2 pt-0.5">
                           <span className="font-display font-extrabold text-sm text-slate-900">
-                            ${Number(dish.price).toFixed(2)}
+                            {formatCurrency(dish.price, activeRestaurant?.currency)}
                           </span>
                           {dish.preparationTime && (
                             <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
@@ -600,16 +601,16 @@ export const MenuBuilderPage: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Price (USD) *
+                    Price ({activeRestaurant?.currency || "USD"}) *
                   </label>
                   <input
                     type="number"
-                    step="0.01"
+                    step="any"
                     min="0"
                     required
                     value={dishPrice}
                     onChange={(e) => setDishPrice(e.target.value)}
-                    placeholder="16.50"
+                    placeholder={activeRestaurant?.currency === "PKR" ? "1250" : activeRestaurant?.currency === "INR" ? "450" : "16.50"}
                     className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                   />
                 </div>

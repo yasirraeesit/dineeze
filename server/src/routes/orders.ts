@@ -119,6 +119,14 @@ router.post("/", validateBody(createOrderSchema), async (req: Request, res: Resp
           },
           include: {
             table: true,
+            restaurant: {
+              select: {
+                id: true,
+                name: true,
+                currency: true,
+                accentColor: true,
+              },
+            },
             items: {
               include: { dish: true },
             },
@@ -200,6 +208,14 @@ router.get("/", authenticateJWT, verifyRestaurantOwner, async (req: Request, res
       where: whereClause,
       include: {
         table: true,
+        restaurant: {
+          select: {
+            id: true,
+            name: true,
+            currency: true,
+            accentColor: true,
+          },
+        },
         items: {
           include: {
             dish: true,
@@ -242,6 +258,14 @@ router.patch(
         data: { status: req.body.status },
         include: {
           table: true,
+          restaurant: {
+            select: {
+              id: true,
+              name: true,
+              currency: true,
+              accentColor: true,
+            },
+          },
           items: {
             include: { dish: true },
           },

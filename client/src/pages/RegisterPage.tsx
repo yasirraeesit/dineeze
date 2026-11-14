@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import api from "../utils/api";
 import useAuthStore from "../stores/authStore";
+import { SUPPORTED_CURRENCIES } from "../utils/currency";
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
@@ -294,12 +295,11 @@ export const RegisterPage: React.FC = () => {
                     onChange={(e) => setCurrency(e.target.value)}
                     className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300 bg-white"
                   >
-                    <option value="USD">USD ($)</option>
-                    <option value="EUR">EUR (€)</option>
-                    <option value="GBP">GBP (£)</option>
-                    <option value="CAD">CAD ($)</option>
-                    <option value="AUD">AUD ($)</option>
-                    <option value="INR">INR (₹)</option>
+                    {SUPPORTED_CURRENCIES.map((curr) => (
+                      <option key={curr.code} value={curr.code}>
+                        {curr.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>

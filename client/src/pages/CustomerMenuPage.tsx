@@ -21,6 +21,7 @@ import api from "../utils/api";
 import useCartStore from "../stores/cartStore";
 import useSocket from "../hooks/useSocket";
 import { getContrastTextColor } from "../utils/color";
+import { formatCurrency } from "../utils/currency";
 
 interface Dish {
   id: string;
@@ -406,7 +407,7 @@ export const CustomerMenuPage: React.FC = () => {
                               {dish.name}
                             </h3>
                             <span className="font-bold text-xs text-slate-900 shrink-0">
-                              ${Number(dish.price).toFixed(2)}
+                              {formatCurrency(dish.price, restaurant?.currency)}
                             </span>
                           </div>
 
@@ -494,7 +495,7 @@ export const CustomerMenuPage: React.FC = () => {
                 <span className="font-bold text-sm">View Cart</span>
               </div>
               <div className="flex items-center gap-1 font-extrabold text-sm">
-                <span>${cart.getTotalAmount().toFixed(2)}</span>
+                <span>{formatCurrency(cart.getTotalAmount(), restaurant?.currency)}</span>
                 <ChevronRight className="w-4 h-4" />
               </div>
             </button>
@@ -527,7 +528,7 @@ export const CustomerMenuPage: React.FC = () => {
                     <div>
                       <p className="font-bold text-xs text-slate-900">{item.name}</p>
                       <p className="text-[11px] text-slate-500">
-                        ${item.price.toFixed(2)} each
+                        {formatCurrency(item.price, restaurant?.currency)} each
                       </p>
                     </div>
 
@@ -550,7 +551,7 @@ export const CustomerMenuPage: React.FC = () => {
                         </button>
                       </div>
                       <span className="font-bold text-xs text-slate-900 min-w-14 text-right">
-                        ${(item.price * item.quantity).toFixed(2)}
+                        {formatCurrency(item.price * item.quantity, restaurant?.currency)}
                       </span>
                     </div>
                   </div>
@@ -589,11 +590,11 @@ export const CustomerMenuPage: React.FC = () => {
               <div className="pt-2 border-t border-slate-100 space-y-2">
                 <div className="flex justify-between text-xs text-slate-600">
                   <span>Subtotal</span>
-                  <span>${cart.getTotalAmount().toFixed(2)}</span>
+                  <span>{formatCurrency(cart.getTotalAmount(), restaurant?.currency)}</span>
                 </div>
                 <div className="flex justify-between text-sm font-bold text-slate-900">
                   <span>Total Due</span>
-                  <span className="text-base text-accent">${cart.getTotalAmount().toFixed(2)}</span>
+                  <span className="text-base text-accent">{formatCurrency(cart.getTotalAmount(), restaurant?.currency)}</span>
                 </div>
 
                 <button
@@ -608,7 +609,7 @@ export const CustomerMenuPage: React.FC = () => {
                     </>
                   ) : (
                     <>
-                      Place Dine-in Order • ${cart.getTotalAmount().toFixed(2)}
+                      Place Dine-in Order • {formatCurrency(cart.getTotalAmount(), restaurant?.currency)}
                     </>
                   )}
                 </button>
