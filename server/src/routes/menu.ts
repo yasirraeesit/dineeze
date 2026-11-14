@@ -9,6 +9,7 @@ const router = Router();
 // Protect dashboard menu management routes with owner JWT authentication
 router.use("/categories", authenticateJWT);
 router.use("/items", authenticateJWT);
+router.use("/seed-sample", authenticateJWT);
 
 // Validation Schemas
 const categorySchema = z.object({
@@ -29,6 +30,7 @@ const itemSchema = z.object({
   isVegetarian: z.boolean().optional().default(false),
   isSpicy: z.boolean().optional().default(false),
   preparationTime: z.number().int().optional(),
+  sortOrder: z.number().int().optional().default(0),
 });
 
 const availabilitySchema = z.object({
@@ -38,6 +40,15 @@ const availabilitySchema = z.object({
 const reorderCategoriesSchema = z.object({
   restaurantId: z.string(),
   categoryIds: z.array(z.string()),
+});
+
+const reorderItemsSchema = z.object({
+  restaurantId: z.string(),
+  dishIds: z.array(z.string()).min(1, "At least one dish ID is required"),
+});
+
+const seedSampleSchema = z.object({
+  restaurantId: z.string(),
 });
 
 // --- Category Routes ---
@@ -51,7 +62,7 @@ router.get("/categories", verifyRestaurantOwner, async (req: Request, res: Respo
       orderBy: { sortOrder: "asc" },
       include: {
         dishes: {
-          orderBy: { createdAt: "desc" },
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
         },
       },
     });
@@ -168,7 +179,7 @@ router.get("/items", verifyRestaurantOwner, async (req: Request, res: Response) 
     const items = await prisma.dish.findMany({
       where: { restaurantId },
       include: { category: true },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     });
     return res.json({ items });
   } catch (error) {
@@ -205,6 +216,7 @@ router.post("/items", verifyRestaurantOwner, validateBody(itemSchema), async (re
         isVegetarian: isVegetarian || false,
         isSpicy: isSpicy || false,
         preparationTime: preparationTime || null,
+        sortOrder: req.body.sortOrder || 0,
       },
     });
 
@@ -240,6 +252,196 @@ router.patch("/items/:id/availability", validateBody(availabilitySchema), async 
   } catch (error) {
     console.error("Toggle availability error:", error);
     return res.status(500).json({ error: "Failed to update item availability" });
+  }
+});
+
+// Reorder items / dishes
+router.put("/items/reorder", verifyRestaurantOwner, validateBody(reorderItemsSchema), async (req: Request, res: Response) => {
+  const { dishIds } = req.body;
+  try {
+    await prisma.$transaction(
+      dishIds.map((id: string, index: number) =>
+        prisma.dish.update({
+          where: { id },
+          data: { sortOrder: index + 1 },
+        })
+      )
+    );
+    return res.json({ success: true, message: "Dishes reordered successfully" });
+  } catch (error) {
+    console.error("Reorder dishes error:", error);
+    return res.status(500).json({ error: "Failed to reorder dishes" });
+  }
+});
+
+// One-Click "Load Sample Menu" for empty restaurants
+router.post("/seed-sample", verifyRestaurantOwner, validateBody(seedSampleSchema), async (req: Request, res: Response) => {
+  const { restaurantId } = req.body;
+  try {
+    const existingCount = await prisma.category.count({
+      where: { restaurantId },
+    });
+
+    if (existingCount > 0) {
+      return res.status(400).json({
+        error: "Menu already contains categories. Quick-start sample menu is only available for empty menus.",
+      });
+    }
+
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+    });
+
+    if (!restaurant) {
+      return res.status(404).json({ error: "Restaurant not found" });
+    }
+
+    const currency = restaurant.currency || "USD";
+
+    // Pricing scaled to restaurant's active currency
+    const prices = (() => {
+      switch (currency) {
+        case "PKR":
+          return { calamari: 1350, bruschetta: 950, burger: 1850, salmon: 2450, spritz: 650, latte: 550 };
+        case "INR":
+          return { calamari: 450, bruschetta: 350, burger: 650, salmon: 850, spritz: 250, latte: 200 };
+        case "GBP":
+          return { calamari: 11.5, bruschetta: 9.5, burger: 15.5, salmon: 20.0, spritz: 5.5, latte: 4.5 };
+        case "USD":
+        default:
+          return { calamari: 13.5, bruschetta: 11.0, burger: 18.5, salmon: 24.0, spritz: 6.5, latte: 5.5 };
+      }
+    })();
+
+    const createdCategories = await prisma.$transaction(async (tx) => {
+      // Category 1: Starters
+      const cat1 = await tx.category.create({
+        data: {
+          restaurantId,
+          name: "Starters & Small Plates",
+          description: "Handcrafted appetizers prepared fresh to order",
+          sortOrder: 1,
+          dishes: {
+            create: [
+              {
+                restaurantId,
+                name: "Crispy Calamari",
+                description: "Herb-dusted squid with roasted garlic aioli and charred lemon.",
+                price: prices.calamari,
+                isAvailable: true,
+                isVegetarian: false,
+                isSpicy: false,
+                preparationTime: 10,
+                sortOrder: 1,
+                imageUrl: "https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?w=800&q=80",
+              },
+              {
+                restaurantId,
+                name: "Truffle Mushroom Bruschetta",
+                description: "Wild sauteed mushrooms, garlic thyme butter on grilled artisan sourdough.",
+                price: prices.bruschetta,
+                isAvailable: true,
+                isVegetarian: true,
+                isSpicy: false,
+                preparationTime: 8,
+                sortOrder: 2,
+                imageUrl: "https://images.unsplash.com/photo-1572695157366-5e585ab2b69f?w=800&q=80",
+              },
+            ],
+          },
+        },
+        include: { dishes: true },
+      });
+
+      // Category 2: Mains
+      const cat2 = await tx.category.create({
+        data: {
+          restaurantId,
+          name: "Mains & Signature Grills",
+          description: "Prime cuts and chef-crafted kitchen specialties",
+          sortOrder: 2,
+          dishes: {
+            create: [
+              {
+                restaurantId,
+                name: "Smoky Wagyu Burger",
+                description: "Black Angus beef, aged cheddar, caramelized shallots, brioche bun, truffle fries.",
+                price: prices.burger,
+                isAvailable: true,
+                isVegetarian: false,
+                isSpicy: false,
+                preparationTime: 15,
+                sortOrder: 1,
+                imageUrl: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&q=80",
+              },
+              {
+                restaurantId,
+                name: "Pan-Seared Salmon Fillet",
+                description: "Atlantic salmon, lemon dill butter glaze, roasted asparagus, creamy potato puree.",
+                price: prices.salmon,
+                isAvailable: true,
+                isVegetarian: false,
+                isSpicy: false,
+                preparationTime: 18,
+                sortOrder: 2,
+                imageUrl: "https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=800&q=80",
+              },
+            ],
+          },
+        },
+        include: { dishes: true },
+      });
+
+      // Category 3: Beverages
+      const cat3 = await tx.category.create({
+        data: {
+          restaurantId,
+          name: "Beverages & Refreshers",
+          description: "Artisan sodas, mocktails, and specialty brews",
+          sortOrder: 3,
+          dishes: {
+            create: [
+              {
+                restaurantId,
+                name: "Artisan Wild Berry Spritz",
+                description: "Sparkling mineral soda, crushed mountain blackberries, lime, and garden mint.",
+                price: prices.spritz,
+                isAvailable: true,
+                isVegetarian: true,
+                isSpicy: false,
+                preparationTime: 5,
+                sortOrder: 1,
+                imageUrl: "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=800&q=80",
+              },
+              {
+                restaurantId,
+                name: "Iced Vanilla Oat Latte",
+                description: "Double shot single-origin espresso, steamed organic oat milk, Madagascar vanilla.",
+                price: prices.latte,
+                isAvailable: true,
+                isVegetarian: true,
+                isSpicy: false,
+                preparationTime: 5,
+                sortOrder: 2,
+                imageUrl: "https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=800&q=80",
+              },
+            ],
+          },
+        },
+        include: { dishes: true },
+      });
+
+      return [cat1, cat2, cat3];
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Starter menu created successfully with 3 categories and 6 chef-crafted items.",
+      categories: createdCategories,
+    });
+  } catch (error) {
+    console.error("Seed sample menu error:", error);
+    return res.status(500).json({ error: "Failed to load sample menu" });
   }
 });
 

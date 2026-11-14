@@ -64,7 +64,7 @@ router.get("/:qrToken", async (req: Request, res: Response, next: NextFunction) 
       orderBy: { sortOrder: "asc" },
       include: {
         dishes: {
-          orderBy: { createdAt: "asc" },
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
         },
       },
     });

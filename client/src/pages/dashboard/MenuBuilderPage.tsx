@@ -12,6 +12,10 @@ import {
   Search,
   Clock,
   BookOpen,
+  Sparkles,
+  ChevronUp,
+  ChevronDown,
+  GripVertical,
 } from "lucide-react";
 import api from "../../utils/api";
 import useAuthStore from "../../stores/authStore";
@@ -36,6 +40,7 @@ interface Dish {
   isVegetarian: boolean;
   isSpicy: boolean;
   preparationTime?: number;
+  sortOrder?: number;
 }
 
 export const MenuBuilderPage: React.FC = () => {
@@ -66,6 +71,8 @@ export const MenuBuilderPage: React.FC = () => {
   const [dishPrepTime, setDishPrepTime] = useState("15");
   const [uploadingImage, setUploadingImage] = useState(false);
   const [submittingDish, setSubmittingDish] = useState(false);
+  const [seedingSample, setSeedingSample] = useState(false);
+  const [draggedDishId, setDraggedDishId] = useState<string | null>(null);
 
   const fetchMenu = async () => {
     if (!activeRestaurant) return;
@@ -83,6 +90,112 @@ export const MenuBuilderPage: React.FC = () => {
   useEffect(() => {
     fetchMenu();
   }, [activeRestaurant?.id]);
+
+  // One-Click "Load Sample Menu" for empty restaurants
+  const handleSeedSample = async () => {
+    if (!activeRestaurant) return;
+    try {
+      setSeedingSample(true);
+      await api.post("/api/menu/seed-sample", {
+        restaurantId: activeRestaurant.id,
+      });
+      await fetchMenu();
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Failed to load sample menu");
+    } finally {
+      setSeedingSample(false);
+    }
+  };
+
+  // Move category up or down and persist in batch
+  const moveCategory = async (currentIndex: number, direction: "up" | "down") => {
+    const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= categories.length) return;
+
+    const reordered = [...categories];
+    const [moved] = reordered.splice(currentIndex, 1);
+    reordered.splice(targetIndex, 0, moved);
+
+    setCategories(reordered);
+
+    try {
+      await api.put("/api/menu/categories/reorder", {
+        restaurantId: activeRestaurant?.id,
+        categoryIds: reordered.map((c) => c.id),
+      });
+    } catch (err) {
+      console.error("Failed to persist category order:", err);
+      fetchMenu();
+    }
+  };
+
+  // Move dish up or down within a category and persist in batch
+  const moveDish = async (categoryId: string, currentIndex: number, direction: "up" | "down") => {
+    const cat = categories.find((c) => c.id === categoryId);
+    if (!cat) return;
+
+    const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= cat.dishes.length) return;
+
+    const reorderedDishes = [...cat.dishes];
+    const [moved] = reorderedDishes.splice(currentIndex, 1);
+    reorderedDishes.splice(targetIndex, 0, moved);
+
+    setCategories((prev) =>
+      prev.map((c) => (c.id === categoryId ? { ...c, dishes: reorderedDishes } : c))
+    );
+
+    try {
+      await api.put("/api/menu/items/reorder", {
+        restaurantId: activeRestaurant?.id,
+        dishIds: reorderedDishes.map((d) => d.id),
+      });
+    } catch (err) {
+      console.error("Failed to persist dish order:", err);
+      fetchMenu();
+    }
+  };
+
+  // Drag and drop handlers for dishes
+  const handleDishDragStart = (e: React.DragEvent, dishId: string) => {
+    setDraggedDishId(dishId);
+    e.dataTransfer.setData("text/plain", dishId);
+  };
+
+  const handleDishDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDishDrop = async (e: React.DragEvent, categoryId: string, targetDishId: string) => {
+    e.preventDefault();
+    if (!draggedDishId || draggedDishId === targetDishId) return;
+
+    const cat = categories.find((c) => c.id === categoryId);
+    if (!cat) return;
+
+    const fromIndex = cat.dishes.findIndex((d) => d.id === draggedDishId);
+    const toIndex = cat.dishes.findIndex((d) => d.id === targetDishId);
+    if (fromIndex === -1 || toIndex === -1) return;
+
+    const reorderedDishes = [...cat.dishes];
+    const [moved] = reorderedDishes.splice(fromIndex, 1);
+    reorderedDishes.splice(toIndex, 0, moved);
+
+    setCategories((prev) =>
+      prev.map((c) => (c.id === categoryId ? { ...c, dishes: reorderedDishes } : c))
+    );
+    setDraggedDishId(null);
+
+    try {
+      await api.put("/api/menu/items/reorder", {
+        restaurantId: activeRestaurant?.id,
+        dishIds: reorderedDishes.map((d) => d.id),
+      });
+    } catch (err) {
+      console.error("Failed to persist drag reorder:", err);
+      fetchMenu();
+    }
+  };
 
   // Fast In-Stock / Sold-Out Toggle
   const toggleAvailability = async (dishId: string, currentStatus: boolean) => {
@@ -376,20 +489,40 @@ export const MenuBuilderPage: React.FC = () => {
 
       {/* Categories & Dishes Grid */}
       <div className="space-y-8">
-        {displayedCategories.map((cat) => (
+        {displayedCategories.map((cat, catIdx) => (
           <div key={cat.id} className="space-y-4">
             {/* Category Subheader */}
             <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-              <div>
-                <h3 className="font-display font-extrabold text-base text-slate-900 flex items-center gap-2">
-                  <span>{cat.name}</span>
-                  <span className="text-xs font-mono font-medium text-slate-400">
-                    ({cat.dishes.length} items)
-                  </span>
-                </h3>
-                {cat.description && (
-                  <p className="text-xs text-slate-500">{cat.description}</p>
-                )}
+              <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                  <button
+                    onClick={() => moveCategory(catIdx, "up")}
+                    disabled={catIdx === 0}
+                    className="p-1 rounded text-slate-500 hover:text-slate-900 hover:bg-white disabled:opacity-30 cursor-pointer transition"
+                    title="Move category up"
+                  >
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => moveCategory(catIdx, "down")}
+                    disabled={catIdx === displayedCategories.length - 1}
+                    className="p-1 rounded text-slate-500 hover:text-slate-900 hover:bg-white disabled:opacity-30 cursor-pointer transition"
+                    title="Move category down"
+                  >
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div>
+                  <h3 className="font-display font-extrabold text-base text-slate-900 flex items-center gap-2">
+                    <span>{cat.name}</span>
+                    <span className="text-xs font-mono font-medium text-slate-400">
+                      ({cat.dishes.length} items)
+                    </span>
+                  </h3>
+                  {cat.description && (
+                    <p className="text-xs text-slate-500">{cat.description}</p>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -410,10 +543,16 @@ export const MenuBuilderPage: React.FC = () => {
 
             {/* Dish Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {cat.dishes.map((dish) => (
+              {cat.dishes.map((dish, dishIdx) => (
                 <div
                   key={dish.id}
+                  draggable
+                  onDragStart={(e) => handleDishDragStart(e, dish.id)}
+                  onDragOver={handleDishDragOver}
+                  onDrop={(e) => handleDishDrop(e, cat.id, dish.id)}
                   className={`bg-white rounded-2xl border p-4 shadow-xs space-y-3 transition flex flex-col justify-between ${
+                    draggedDishId === dish.id ? "opacity-40 border-dashed border-emerald-400" : ""
+                  } ${
                     dish.isAvailable
                       ? "border-slate-200/90 hover:border-slate-300"
                       : "border-slate-200/60 bg-slate-50/50 opacity-75"
@@ -423,6 +562,31 @@ export const MenuBuilderPage: React.FC = () => {
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1 flex-1">
                         <div className="flex items-center gap-1.5">
+                          {/* Drag & Reorder Grip & Arrows */}
+                          <div className="flex items-center gap-0.5 mr-1 text-slate-400">
+                            <span
+                              className="cursor-grab active:cursor-grabbing hover:text-slate-700"
+                              title="Drag to reorder"
+                            >
+                              <GripVertical className="w-3.5 h-3.5" />
+                            </span>
+                            <button
+                              onClick={() => moveDish(cat.id, dishIdx, "up")}
+                              disabled={dishIdx === 0}
+                              className="p-0.5 rounded text-slate-400 hover:text-slate-800 disabled:opacity-20 cursor-pointer"
+                              title="Move up"
+                            >
+                              <ChevronUp className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => moveDish(cat.id, dishIdx, "down")}
+                              disabled={dishIdx === cat.dishes.length - 1}
+                              className="p-0.5 rounded text-slate-400 hover:text-slate-800 disabled:opacity-20 cursor-pointer"
+                              title="Move down"
+                            >
+                              <ChevronDown className="w-3 h-3" />
+                            </button>
+                          </div>
                           <h4 className="font-display font-bold text-sm text-slate-900 leading-tight">
                             {dish.name}
                           </h4>
@@ -442,7 +606,7 @@ export const MenuBuilderPage: React.FC = () => {
                             {dish.description}
                           </p>
                         )}
-                        <div className="flex items-center gap-2 pt-0.5">
+                        <div className="flex items-center gap-2 pt-0.5 pl-6">
                           <span className="font-display font-extrabold text-sm text-slate-900">
                             {formatCurrency(dish.price, activeRestaurant?.currency)}
                           </span>
@@ -493,14 +657,14 @@ export const MenuBuilderPage: React.FC = () => {
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => openEditDish(dish)}
-                        className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition"
+                        className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition cursor-pointer"
                         title="Edit dish"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => handleDeleteDish(dish.id)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
                         title="Delete dish"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -520,18 +684,61 @@ export const MenuBuilderPage: React.FC = () => {
         ))}
 
         {categories.length === 0 && !loading && (
-          <div className="p-12 text-center bg-white rounded-2xl border border-dashed border-slate-200 space-y-3">
-            <BookOpen className="w-10 h-10 text-slate-300 mx-auto" />
-            <h3 className="font-display font-bold text-base text-slate-900">Your Menu is Empty</h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              Start by creating your first category (e.g. Starters, Main Courses, Drinks) and adding dishes.
-            </p>
-            <button
-              onClick={() => setCatModalOpen(true)}
-              className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white"
-            >
-              + Create Category
-            </button>
+          <div className="p-8 sm:p-12 text-center bg-white rounded-3xl border border-slate-200 shadow-sm space-y-6 max-w-xl mx-auto my-6">
+            <div className="w-16 h-16 rounded-3xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 mx-auto shadow-xs">
+              <Sparkles className="w-8 h-8" />
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="font-display font-extrabold text-xl text-slate-900">
+                Quick-Start Sample Menu
+              </h3>
+              <p className="text-xs text-slate-500 leading-relaxed max-w-md mx-auto">
+                No items on your menu yet. Launch in 1 click with a realistic starter lineup of chef-crafted appetizers, prime mains, and artisan beverages customized in{" "}
+                <span className="font-semibold text-slate-700">
+                  {activeRestaurant?.currency || "USD"}
+                </span>.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-left text-xs bg-slate-50 p-4 rounded-2xl border border-slate-100">
+              <div className="p-2.5 rounded-xl bg-white border border-slate-200/80">
+                <span className="font-bold text-slate-900 block text-xs">🥗 2 Starters</span>
+                <span className="text-[10px] text-slate-500">Calamari, Bruschetta</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-white border border-slate-200/80">
+                <span className="font-bold text-slate-900 block text-xs">🥩 2 Mains</span>
+                <span className="text-[10px] text-slate-500">Wagyu Burger, Salmon</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-white border border-slate-200/80">
+                <span className="font-bold text-slate-900 block text-xs">🍹 2 Beverages</span>
+                <span className="text-[10px] text-slate-500">Berry Spritz, Oat Latte</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+              <button
+                onClick={handleSeedSample}
+                disabled={seedingSample}
+                className="w-full sm:w-auto px-6 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
+              >
+                {seedingSample ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Provisioning Sample Menu...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" /> Load Sample Menu
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => setCatModalOpen(true)}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 border border-slate-200 transition cursor-pointer"
+              >
+                + Create Blank Category
+              </button>
+            </div>
           </div>
         )}
       </div>

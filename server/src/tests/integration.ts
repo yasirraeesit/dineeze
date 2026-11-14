@@ -247,14 +247,107 @@ async function runIntegrationTests() {
       throw new Error(`TEST (f) FAILED: unauthOrders=${unauthOrdersRes.status}, unauthCats=${unauthCategoriesRes.status}, authCats=${authCategoriesRes.status}`);
     }
 
+    // -------------------------------------------------------------------------
+    // TEST (g): One-Click Sample Menu Seeding & Multi-Tenant Protection
+    // -------------------------------------------------------------------------
+    console.log("▶ TEST (g): Verifying POST /api/menu/seed-sample and dish reordering...");
+    const emptyRestB = await prisma.restaurant.upsert({
+      where: { slug: "restaurant-tenant-b-empty" },
+      update: { ownerId: userB.id },
+      create: {
+        ownerId: userB.id,
+        name: "Restaurant B Empty",
+        slug: "restaurant-tenant-b-empty",
+        accentColor: "#3B82F6",
+        currency: "GBP",
+      },
+    });
+
+    // Clean any prior categories on rest B
+    await prisma.dish.deleteMany({ where: { restaurantId: emptyRestB.id } });
+    await prisma.category.deleteMany({ where: { restaurantId: emptyRestB.id } });
+
+    // 1. Unauthenticated seed rejects with 401
+    const unauthSeedRes = await fetch(`${baseUrl}/api/menu/seed-sample`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ restaurantId: emptyRestB.id }),
+    });
+    if (unauthSeedRes.status !== 401) {
+      throw new Error(`TEST (g) FAILED: Expected 401 on unauth seed, got ${unauthSeedRes.status}`);
+    }
+
+    // 2. Cross-tenant seed (User A attempting to seed User B's restaurant) returns 403
+    const crossTenantSeedRes = await fetch(`${baseUrl}/api/menu/seed-sample`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenA}`,
+      },
+      body: JSON.stringify({ restaurantId: emptyRestB.id }),
+    });
+    if (crossTenantSeedRes.status !== 403) {
+      throw new Error(`TEST (g) FAILED: Expected 403 on cross-tenant seed, got ${crossTenantSeedRes.status}`);
+    }
+
+    // 3. Authorized seed populates 3 categories and 6 dishes
+    const validSeedRes = await fetch(`${baseUrl}/api/menu/seed-sample`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenB}`,
+      },
+      body: JSON.stringify({ restaurantId: emptyRestB.id }),
+    });
+    const validSeedJson: any = await validSeedRes.json();
+    if (validSeedRes.status !== 201 || validSeedJson.categories?.length !== 3) {
+      throw new Error(`TEST (g) FAILED: Expected 201 with 3 categories, got status ${validSeedRes.status}`);
+    }
+
+    // 4. Repeated seed on non-empty menu returns 400
+    const repeatSeedRes = await fetch(`${baseUrl}/api/menu/seed-sample`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenB}`,
+      },
+      body: JSON.stringify({ restaurantId: emptyRestB.id }),
+    });
+    if (repeatSeedRes.status !== 400) {
+      throw new Error(`TEST (g) FAILED: Expected 400 on non-empty seed, got ${repeatSeedRes.status}`);
+    }
+
+    // 5. Test dish reordering: PUT /api/menu/items/reorder
+    const seededDishes = validSeedJson.categories[0].dishes;
+    const reorderedIds = [seededDishes[1].id, seededDishes[0].id];
+    const reorderRes = await fetch(`${baseUrl}/api/menu/items/reorder`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenB}`,
+      },
+      body: JSON.stringify({
+        restaurantId: emptyRestB.id,
+        dishIds: reorderedIds,
+      }),
+    });
+    if (reorderRes.status === 200) {
+      console.log(`  ✅ PASS: Sample menu seeded and reordered with multi-tenant isolation.`);
+    } else {
+      throw new Error(`TEST (g) FAILED: Dish reorder failed with status ${reorderRes.status}`);
+    }
+
     // Cleanup test records
+    await prisma.dish.deleteMany({ where: { restaurantId: emptyRestB.id } });
+    await prisma.category.deleteMany({ where: { restaurantId: emptyRestB.id } });
+    await prisma.restaurant.delete({ where: { id: emptyRestB.id } });
     await prisma.orderItem.deleteMany({ where: { orderId: createdOrderId } });
     await prisma.order.delete({ where: { id: createdOrderId } });
     await prisma.dish.delete({ where: { id: dishA.id } });
     await prisma.category.delete({ where: { id: categoryA.id } });
     await prisma.table.delete({ where: { id: tableA.id } });
 
-    console.log("\n🎉 ALL 6 INTEGRATION TESTS PASSED CLEANLY!");
+    console.log("\n🎉 ALL 7 INTEGRATION TESTS PASSED CLEANLY!");
   } catch (error) {
     console.error("❌ Integration test error:", error);
     process.exitCode = 1;

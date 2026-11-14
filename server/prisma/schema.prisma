@@ -110,6 +110,7 @@ model Dish {
   isAvailable     Boolean     @default(true)
   isVegetarian    Boolean     @default(false)
   isSpicy         Boolean     @default(false)
+  sortOrder       Int         @default(0)
   preparationTime Int?
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
