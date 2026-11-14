@@ -203,6 +203,50 @@ async function runIntegrationTests() {
 
     socketClient.disconnect();
 
+    // -------------------------------------------------------------------------
+    // TEST (d): Unauthenticated public menu access via GET /api/menu/:qrToken
+    // -------------------------------------------------------------------------
+    console.log("▶ TEST (d): Verifying public guest menu access without Authorization header...");
+    const publicMenuRes = await fetch(`${baseUrl}/api/menu/${tableA.qrToken}`);
+    if (publicMenuRes.status === 200) {
+      const publicMenuJson: any = await publicMenuRes.json();
+      if (publicMenuJson.restaurant?.name === "Restaurant A" && publicMenuJson.table?.qrToken === tableA.qrToken) {
+        console.log(`  ✅ PASS: GET /api/menu/:qrToken returned HTTP 200 OK without any auth headers.`);
+      } else {
+        throw new Error(`TEST (d) FAILED: Unexpected response payload: ${JSON.stringify(publicMenuJson)}`);
+      }
+    } else {
+      throw new Error(`TEST (d) FAILED: Expected status 200, got ${publicMenuRes.status} (Possible auth intercept bug!)`);
+    }
+
+    // -------------------------------------------------------------------------
+    // TEST (e): Unauthenticated public order tracking via GET /api/orders/:id and /api/orders/:id/track
+    // -------------------------------------------------------------------------
+    console.log("▶ TEST (e): Verifying public order tracking without Authorization header...");
+    const trackRes = await fetch(`${baseUrl}/api/orders/${createdOrderId}/track`);
+    const directOrderRes = await fetch(`${baseUrl}/api/orders/${createdOrderId}`);
+    if (trackRes.status === 200 && directOrderRes.status === 200) {
+      console.log(`  ✅ PASS: Both GET /api/orders/:id and /track returned HTTP 200 OK without auth headers.`);
+    } else {
+      throw new Error(`TEST (e) FAILED: /track status: ${trackRes.status}, /:id status: ${directOrderRes.status}`);
+    }
+
+    // -------------------------------------------------------------------------
+    // TEST (f): Protected endpoints correctly reject unauthenticated requests
+    // -------------------------------------------------------------------------
+    console.log("▶ TEST (f): Verifying protected dashboard endpoints reject missing token with 401...");
+    const unauthOrdersRes = await fetch(`${baseUrl}/api/orders?restaurantId=${restaurantA.id}`);
+    const unauthCategoriesRes = await fetch(`${baseUrl}/api/menu/categories?restaurantId=${restaurantA.id}`);
+    const authCategoriesRes = await fetch(`${baseUrl}/api/menu/categories?restaurantId=${restaurantA.id}`, {
+      headers: { Authorization: `Bearer ${tokenA}` },
+    });
+
+    if (unauthOrdersRes.status === 401 && unauthCategoriesRes.status === 401 && authCategoriesRes.status === 200) {
+      console.log(`  ✅ PASS: Protected routes correctly return HTTP 401 when token is missing and 200 when authenticated.`);
+    } else {
+      throw new Error(`TEST (f) FAILED: unauthOrders=${unauthOrdersRes.status}, unauthCats=${unauthCategoriesRes.status}, authCats=${authCategoriesRes.status}`);
+    }
+
     // Cleanup test records
     await prisma.orderItem.deleteMany({ where: { orderId: createdOrderId } });
     await prisma.order.delete({ where: { id: createdOrderId } });
@@ -210,7 +254,7 @@ async function runIntegrationTests() {
     await prisma.category.delete({ where: { id: categoryA.id } });
     await prisma.table.delete({ where: { id: tableA.id } });
 
-    console.log("\n🎉 ALL 3 INTEGRATION TESTS PASSED CLEANLY!");
+    console.log("\n🎉 ALL 6 INTEGRATION TESTS PASSED CLEANLY!");
   } catch (error) {
     console.error("❌ Integration test error:", error);
     process.exitCode = 1;

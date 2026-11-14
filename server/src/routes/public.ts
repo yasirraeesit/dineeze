@@ -1,11 +1,16 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import prisma from "../prisma";
 
 const router = Router();
 
 // Public customer menu endpoint: GET /api/menu/:qrToken
-router.get("/:qrToken", async (req: Request, res: Response) => {
+router.get("/:qrToken", async (req: Request, res: Response, next: NextFunction) => {
   const { qrToken } = req.params;
+
+  // Pass through if the requested token is an internal management route (e.g. categories, items)
+  if (qrToken === "categories" || qrToken === "items") {
+    return next();
+  }
 
   try {
     const table = await prisma.table.findUnique({

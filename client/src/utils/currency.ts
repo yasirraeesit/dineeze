@@ -56,3 +56,4 @@ export function getCurrencySymbol(currency: string = "USD"): string {
   const found = SUPPORTED_CURRENCIES.find((c) => c.code === upper);
   return found ? found.symbol : "$";
 }
+

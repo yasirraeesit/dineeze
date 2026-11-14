@@ -154,46 +154,7 @@ router.post("/", validateBody(createOrderSchema), async (req: Request, res: Resp
   }
 });
 
-// 2. PUBLIC: Customer tracks live order status by ID
-router.get("/:id/track", async (req: Request, res: Response) => {
-  try {
-    const order = await prisma.order.findUnique({
-      where: { id: req.params.id },
-      include: {
-        table: true,
-        restaurant: {
-          select: {
-            name: true,
-            accentColor: true,
-            currency: true,
-            logoUrl: true,
-          },
-        },
-        items: {
-          include: {
-            dish: {
-              select: {
-                name: true,
-                imageUrl: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!order) {
-      return res.status(404).json({ error: "Order not found" });
-    }
-
-    return res.json({ order });
-  } catch (error) {
-    console.error("Track order error:", error);
-    return res.status(500).json({ error: "Failed to track order" });
-  }
-});
-
-// 3. OWNER/KDS: List orders for restaurant
+// 2. OWNER/KDS: List orders for restaurant (Protected by owner JWT)
 router.get("/", authenticateJWT, verifyRestaurantOwner, async (req: Request, res: Response) => {
   const restaurantId = req.query.restaurantId as string;
   const status = req.query.status as string;
@@ -231,6 +192,51 @@ router.get("/", authenticateJWT, verifyRestaurantOwner, async (req: Request, res
     return res.status(500).json({ error: "Failed to list orders" });
   }
 });
+
+// 3. PUBLIC: Customer tracks live order status by ID (supports /:id and /:id/track)
+const handleGetSingleOrder = async (req: Request, res: Response) => {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: req.params.id },
+      include: {
+        table: true,
+        restaurant: {
+          select: {
+            id: true,
+            name: true,
+            accentColor: true,
+            currency: true,
+            logoUrl: true,
+          },
+        },
+        items: {
+          include: {
+            dish: {
+              select: {
+                id: true,
+                name: true,
+                imageUrl: true,
+                price: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    return res.json({ order });
+  } catch (error) {
+    console.error("Track order error:", error);
+    return res.status(500).json({ error: "Failed to track order" });
+  }
+};
+
+router.get("/:id", handleGetSingleOrder);
+router.get("/:id/track", handleGetSingleOrder);
 
 // 4. OWNER/KDS: Update order status (PENDING -> PREPARING -> READY -> SERVED / CANCELLED)
 router.patch(

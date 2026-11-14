@@ -106,11 +106,14 @@ app.get("/health", (_req: Request, res: Response) => {
 // 2. API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/restaurants", restaurantRoutes);
-app.use("/api/menu", menuRoutes);
+
+// Public Customer Menu & Ordering Routes (NO auth middleware)
+app.use("/api/public/menu", publicRoutes);
+app.use("/api/menu", publicRoutes); // Public QR token menu endpoint: GET /api/menu/:qrToken
+app.use("/api/menu", menuRoutes);   // Protected owner menu management: /api/menu/categories, /api/menu/items
+
 app.use("/api/tables", tableRoutes);
 app.use("/api/upload", uploadRoutes);
-app.use("/api/public/menu", publicRoutes);
-app.use("/api/menu", publicRoutes); // Alias for convenience: /api/menu/:qrToken
 app.use("/api/orders", orderRoutes);
 
 // 3. Centralized 404 handler

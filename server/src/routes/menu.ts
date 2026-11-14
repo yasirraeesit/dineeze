@@ -5,7 +5,10 @@ import { authenticateJWT, verifyRestaurantOwner } from "../middlewares/auth";
 import { validateBody } from "../middlewares/validate";
 
 const router = Router();
-router.use(authenticateJWT);
+
+// Protect dashboard menu management routes with owner JWT authentication
+router.use("/categories", authenticateJWT);
+router.use("/items", authenticateJWT);
 
 // Validation Schemas
 const categorySchema = z.object({
