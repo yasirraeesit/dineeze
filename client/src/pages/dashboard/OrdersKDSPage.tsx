@@ -7,7 +7,11 @@ import {
   ChefHat,
   Volume2,
   VolumeX,
-  Sparkles,
+  Search,
+  Check,
+  Leaf,
+  Flame,
+  Filter,
 } from "lucide-react";
 import api from "../../utils/api";
 import useAuthStore from "../../stores/authStore";
@@ -23,6 +27,8 @@ interface OrderItem {
   dish: {
     id: string;
     name: string;
+    isVegetarian?: boolean;
+    isSpicy?: boolean;
   };
 }
 
@@ -36,6 +42,7 @@ interface Order {
   notes?: string;
   createdAt: string;
   table: {
+    id?: string;
     tableNumber: number;
     label?: string;
   };
@@ -50,8 +57,10 @@ export const OrdersKDSPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isMuted, setIsMuted] = useState(audioChime.getMuted());
   const [time, setTime] = useState(Date.now());
+  const [searchQuery, setSearchQuery] = useState("");
+  const [tableFilter, setTableFilter] = useState<string>("ALL");
 
-  // Update timer tick every 10 seconds to keep elapsed minutes accurate
+  // Keep elapsed minutes ticking every 10 seconds
   useEffect(() => {
     const interval = setInterval(() => setTime(Date.now()), 10000);
     return () => clearInterval(interval);
@@ -74,16 +83,13 @@ export const OrdersKDSPage: React.FC = () => {
     fetchOrders();
   }, [activeRestaurant?.id]);
 
-  // Real-time socket event handling
+  // Real-time socket event listeners
   useEffect(() => {
     if (!socket || !activeRestaurant?.id) return;
 
     const handleNewOrder = (newOrder: Order) => {
-      // Play chime sound
       audioChime.playNewOrderChime();
-
       setOrders((prev) => {
-        // Prevent duplicate insertions
         if (prev.some((o) => o.id === newOrder.id)) return prev;
         return [newOrder, ...prev];
       });
@@ -122,137 +128,236 @@ export const OrdersKDSPage: React.FC = () => {
     setIsMuted(muted);
   };
 
-  // Helper to format elapsed minutes
-  const getElapsedMinutes = (dateStr: string) => {
+  // Helper to format elapsed minutes and urgency level
+  const getTimerDetails = (dateStr: string) => {
     const created = new Date(dateStr).getTime();
-    const diffMs = time - created;
-    return Math.floor(diffMs / 60000);
+    const diffMinutes = Math.floor((time - created) / 60000);
+
+    let colorClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+    let level: "normal" | "warning" | "urgent" = "normal";
+
+    if (diffMinutes >= 12) {
+      colorClass = "bg-rose-50 text-rose-700 border-rose-300 animate-pulse";
+      level = "urgent";
+    } else if (diffMinutes >= 5) {
+      colorClass = "bg-amber-50 text-amber-700 border-amber-300";
+      level = "warning";
+    }
+
+    return { diffMinutes, colorClass, level };
   };
 
-  // Column categorization
-  const pendingOrders = orders.filter((o) => o.status === "PENDING" || o.status === "CONFIRMED");
-  const preparingOrders = orders.filter((o) => o.status === "PREPARING");
-  const readyOrders = orders.filter((o) => o.status === "READY" || o.status === "SERVED");
+  // Get unique table numbers for the filter dropdown
+  const uniqueTables = Array.from(
+    new Set(orders.map((o) => o.table?.tableNumber).filter(Boolean))
+  ).sort((a, b) => (a || 0) - (b || 0));
+
+  // Filter orders by search and table
+  const filteredOrders = orders.filter((o) => {
+    const matchesTable =
+      tableFilter === "ALL" || String(o.table?.tableNumber) === tableFilter;
+    const matchesSearch =
+      searchQuery.trim() === "" ||
+      o.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (o.customerName && o.customerName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (o.table?.label && o.table.label.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    return matchesTable && matchesSearch;
+  });
+
+  const pendingOrders = filteredOrders.filter(
+    (o) => o.status === "PENDING" || o.status === "CONFIRMED"
+  );
+  const preparingOrders = filteredOrders.filter((o) => o.status === "PREPARING");
+  const readyOrders = filteredOrders.filter(
+    (o) => o.status === "READY" || o.status === "SERVED"
+  );
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      {/* Header & Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+    <div className="space-y-6">
+      {/* KDS Control Header & Filter Bar */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl md:text-2xl font-bold font-display text-slate-900">
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-bold font-display text-slate-950">
               Kitchen Display System (KDS)
             </h1>
             <span className="flex h-2.5 w-2.5 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Real-time live ticket feed for {activeRestaurant?.name || "your restaurant"}.
+          <p className="text-xs text-slate-500 mt-1">
+            Real-time kitchen Kanban order pipeline for {activeRestaurant?.name || "your restaurant"}.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        {/* Filters & Actions */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Search Order / Table */}
+          <div className="relative min-w-[200px]">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search #ticket or guest..."
+              className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition"
+            />
+          </div>
+
+          {/* Table Filter Dropdown */}
+          <div className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs">
+            <Filter className="w-3.5 h-3.5 text-slate-500" />
+            <select
+              value={tableFilter}
+              onChange={(e) => setTableFilter(e.target.value)}
+              className="bg-transparent font-semibold text-slate-700 text-xs focus:outline-hidden cursor-pointer"
+            >
+              <option value="ALL">All Tables ({orders.length})</option>
+              {uniqueTables.map((tNum) => (
+                <option key={tNum} value={String(tNum)}>
+                  Table {tNum}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Sound Toggle */}
           <button
             onClick={toggleSound}
-            className={`px-3 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition ${
               isMuted
-                ? "bg-rose-50 text-rose-700 border-rose-200"
-                : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                ? "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
+                : "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
             }`}
           >
-            {isMuted ? <VolumeX className="w-4 h-4 text-rose-500" /> : <Volume2 className="w-4 h-4 text-emerald-600" />}
-            <span>{isMuted ? "Audio Muted" : "Audio Active"}</span>
+            {isMuted ? <VolumeX className="w-3.5 h-3.5 text-rose-500" /> : <Volume2 className="w-3.5 h-3.5 text-emerald-600" />}
+            <span className="hidden sm:inline">{isMuted ? "Sound Muted" : "Chime Active"}</span>
           </button>
 
+          {/* Refresh Button */}
           <button
             onClick={fetchOrders}
             className="p-2 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition"
-            title="Refresh orders"
+            title="Refresh active tickets"
           >
-            <RotateCw className="w-4 h-4" />
+            <RotateCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
       </div>
 
       {/* 3-Column Kanban Board */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* COLUMN 1: PENDING */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        {/* COLUMN 1: PENDING / INCOMING */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b-2 border-amber-400">
+          <div className="flex items-center justify-between pb-2.5 border-b-2 border-amber-400">
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-amber-400" />
-              <h2 className="font-display font-bold text-sm uppercase tracking-wider text-slate-800">
-                New Orders ({pendingOrders.length})
+              <span className="w-3 h-3 rounded-full bg-amber-400 shrink-0" />
+              <h2 className="font-display font-extrabold text-sm uppercase tracking-wider text-slate-900">
+                Pending ({pendingOrders.length})
               </h2>
             </div>
-            <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">
+            <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
               Action Needed
             </span>
           </div>
 
           <div className="space-y-4">
             {pendingOrders.map((order) => {
-              const elapsed = getElapsedMinutes(order.createdAt);
-              const isUrgent = elapsed > 10;
+              const { diffMinutes, colorClass, level } = getTimerDetails(order.createdAt);
               return (
                 <div
                   key={order.id}
-                  className={`bg-white rounded-2xl border shadow-sm p-4 space-y-3 transition ${
-                    isUrgent ? "border-rose-400 ring-2 ring-rose-200/50" : "border-amber-200"
+                  className={`bg-white rounded-2xl border shadow-sm p-4 space-y-3.5 transition-all duration-200 ${
+                    level === "urgent"
+                      ? "border-rose-400 ring-2 ring-rose-200/60"
+                      : "border-amber-200/90 hover:border-amber-400"
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="font-display font-extrabold text-base text-slate-900 block">
-                        {order.orderNumber}
-                      </span>
-                      <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md">
-                        {order.table?.label || `Table ${order.table?.tableNumber}`}
-                      </span>
+                  {/* Card Header: Table Badge + Order # */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-1 rounded-lg bg-slate-900 text-white font-display font-bold text-xs uppercase tracking-wide shadow-xs">
+                          {order.table?.label || `Table ${order.table?.tableNumber}`}
+                        </span>
+                        <span className="font-display font-bold text-sm text-slate-900">
+                          #{order.orderNumber}
+                        </span>
+                      </div>
+                      {order.customerName && (
+                        <p className="text-[11px] text-slate-500 font-medium pl-0.5">
+                          Guest: {order.customerName}
+                        </p>
+                      )}
                     </div>
-                    <div className="text-right">
+
+                    {/* Timer Badge */}
+                    <div className="text-right space-y-0.5">
                       <span
-                        className={`text-xs font-bold inline-flex items-center gap-1 ${
-                          isUrgent ? "text-rose-600" : "text-slate-500"
-                        }`}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border ${colorClass}`}
                       >
-                        <Clock className="w-3.5 h-3.5" /> {elapsed}m ago
+                        <Clock className="w-3 h-3" />
+                        <span>{diffMinutes}m</span>
                       </span>
-                      <span className="text-xs font-bold text-slate-700 block">
+                      <p className="text-[11px] font-bold text-slate-700">
                         ${Number(order.totalAmount).toFixed(2)}
-                      </span>
+                      </p>
                     </div>
                   </div>
 
+                  {/* Customer Kitchen Notes Alert Callout */}
                   {order.notes && (
-                    <div className="p-2 bg-amber-50/60 border border-amber-200/50 rounded-xl text-xs text-amber-900 flex items-start gap-1.5">
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-                      <span className="font-medium">"{order.notes}"</span>
+                    <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2 shadow-xs">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="leading-snug">
+                        <span className="font-bold block text-[10px] uppercase text-amber-700">Kitchen Note</span>
+                        <span>"{order.notes}"</span>
+                      </div>
                     </div>
                   )}
 
-                  {/* Order items */}
-                  <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                  {/* Itemized Dish List */}
+                  <div className="space-y-2 pt-1 border-t border-slate-100">
                     {order.items.map((item) => (
-                      <div key={item.id} className="text-xs flex items-start justify-between">
-                        <div>
-                          <span className="font-bold text-slate-800 mr-2">{item.quantity}x</span>
-                          <span className="text-slate-700 font-medium">{item.dish.name}</span>
+                      <div key={item.id} className="text-xs flex items-start justify-between gap-2">
+                        <div className="space-y-0.5 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-md bg-slate-100 text-slate-800 font-bold flex items-center justify-center text-xs shrink-0">
+                              {item.quantity}
+                            </span>
+                            <span className="font-bold text-slate-900 leading-tight">
+                              {item.dish.name}
+                            </span>
+                            {item.dish.isVegetarian && (
+                              <span title="Vegetarian">
+                                <Leaf className="w-3.5 h-3.5 text-emerald-600 inline shrink-0" />
+                              </span>
+                            )}
+                            {item.dish.isSpicy && (
+                              <span title="Spicy">
+                                <Flame className="w-3.5 h-3.5 text-red-500 inline shrink-0" />
+                              </span>
+                            )}
+                          </div>
                           {item.specialInstructions && (
-                            <p className="text-[11px] text-amber-700 pl-6 italic">
+                            <p className="text-[11px] text-amber-800 pl-7 font-medium italic">
                               ↳ {item.specialInstructions}
                             </p>
                           )}
                         </div>
+                        <span className="text-slate-400 text-[11px] font-mono shrink-0">
+                          ${Number(item.subtotal).toFixed(2)}
+                        </span>
                       </div>
                     ))}
                   </div>
 
+                  {/* Large Full-Width Action Button */}
                   <button
                     onClick={() => updateStatus(order.id, "PREPARING")}
-                    className="w-full py-2.5 rounded-xl font-bold text-xs bg-amber-500 hover:bg-amber-600 text-white shadow-sm flex items-center justify-center gap-1.5 transition"
+                    className="w-full py-2.5 rounded-xl font-bold text-xs bg-amber-500 hover:bg-amber-600 active:scale-[0.99] text-white shadow-sm flex items-center justify-center gap-2 transition cursor-pointer"
                   >
                     <ChefHat className="w-4 h-4" /> Accept & Start Cooking
                   </button>
@@ -262,62 +367,82 @@ export const OrdersKDSPage: React.FC = () => {
 
             {pendingOrders.length === 0 && !loading && (
               <div className="p-8 text-center bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs">
-                No new orders waiting.
+                No new orders waiting. Ready for the next rush!
               </div>
             )}
           </div>
         </div>
 
-        {/* COLUMN 2: PREPARING */}
+        {/* COLUMN 2: IN PREPARATION */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b-2 border-blue-500">
+          <div className="flex items-center justify-between pb-2.5 border-b-2 border-blue-500">
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-blue-500" />
-              <h2 className="font-display font-bold text-sm uppercase tracking-wider text-slate-800">
-                In the Kitchen ({preparingOrders.length})
+              <span className="w-3 h-3 rounded-full bg-blue-500 shrink-0" />
+              <h2 className="font-display font-extrabold text-sm uppercase tracking-wider text-slate-900">
+                Cooking ({preparingOrders.length})
               </h2>
             </div>
-            <span className="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-bold">
-              Cooking
+            <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+              At the Pass
             </span>
           </div>
 
           <div className="space-y-4">
             {preparingOrders.map((order) => {
-              const elapsed = getElapsedMinutes(order.createdAt);
+              const { diffMinutes, colorClass } = getTimerDetails(order.createdAt);
               return (
                 <div
                   key={order.id}
-                  className="bg-white rounded-2xl border border-blue-200 shadow-sm p-4 space-y-3"
+                  className="bg-white rounded-2xl border border-blue-200/90 shadow-sm p-4 space-y-3.5 hover:border-blue-400 transition"
                 >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="font-display font-extrabold text-base text-slate-900 block">
-                        {order.orderNumber}
-                      </span>
-                      <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md">
-                        {order.table?.label || `Table ${order.table?.tableNumber}`}
-                      </span>
+                  {/* Card Header: Table Badge + Order # */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-1 rounded-lg bg-blue-600 text-white font-display font-bold text-xs uppercase tracking-wide shadow-xs">
+                          {order.table?.label || `Table ${order.table?.tableNumber}`}
+                        </span>
+                        <span className="font-display font-bold text-sm text-slate-900">
+                          #{order.orderNumber}
+                        </span>
+                      </div>
+                      {order.customerName && (
+                        <p className="text-[11px] text-slate-500 font-medium pl-0.5">
+                          Guest: {order.customerName}
+                        </p>
+                      )}
                     </div>
-                    <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5" /> {elapsed}m cooking
+
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border ${colorClass}`}
+                    >
+                      <Clock className="w-3 h-3" />
+                      <span>{diffMinutes}m cooking</span>
                     </span>
                   </div>
 
+                  {/* Customer Notes */}
                   {order.notes && (
-                    <div className="p-2 bg-slate-50 rounded-xl text-xs text-slate-600 italic">
+                    <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 italic">
                       "{order.notes}"
                     </div>
                   )}
 
-                  <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                  {/* Itemized Dish List */}
+                  <div className="space-y-2 pt-1 border-t border-slate-100">
                     {order.items.map((item) => (
-                      <div key={item.id} className="text-xs flex items-start justify-between">
-                        <div>
-                          <span className="font-bold text-slate-800 mr-2">{item.quantity}x</span>
-                          <span className="text-slate-700 font-medium">{item.dish.name}</span>
+                      <div key={item.id} className="text-xs flex items-start justify-between gap-2">
+                        <div className="space-y-0.5 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-md bg-blue-50 text-blue-800 font-bold flex items-center justify-center text-xs shrink-0">
+                              {item.quantity}
+                            </span>
+                            <span className="font-bold text-slate-900 leading-tight">
+                              {item.dish.name}
+                            </span>
+                          </div>
                           {item.specialInstructions && (
-                            <p className="text-[11px] text-blue-700 pl-6 italic">
+                            <p className="text-[11px] text-blue-800 pl-7 italic">
                               ↳ {item.specialInstructions}
                             </p>
                           )}
@@ -326,11 +451,12 @@ export const OrdersKDSPage: React.FC = () => {
                     ))}
                   </div>
 
+                  {/* Action Button: Mark Ready */}
                   <button
                     onClick={() => updateStatus(order.id, "READY")}
-                    className="w-full py-2.5 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center justify-center gap-1.5 transition"
+                    className="w-full py-2.5 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white shadow-sm flex items-center justify-center gap-2 transition cursor-pointer"
                   >
-                    <CheckCircle2 className="w-4 h-4" /> Mark Food Ready
+                    <CheckCircle2 className="w-4 h-4" /> Mark Order Ready
                   </button>
                 </div>
               );
@@ -346,14 +472,14 @@ export const OrdersKDSPage: React.FC = () => {
 
         {/* COLUMN 3: READY / SERVED */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b-2 border-emerald-500">
+          <div className="flex items-center justify-between pb-2.5 border-b-2 border-emerald-500">
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-emerald-500" />
-              <h2 className="font-display font-bold text-sm uppercase tracking-wider text-slate-800">
+              <span className="w-3 h-3 rounded-full bg-emerald-500 shrink-0" />
+              <h2 className="font-display font-extrabold text-sm uppercase tracking-wider text-slate-900">
                 Ready / Served ({readyOrders.length})
               </h2>
             </div>
-            <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
+            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
               Deliver to Table
             </span>
           </div>
@@ -362,26 +488,27 @@ export const OrdersKDSPage: React.FC = () => {
             {readyOrders.map((order) => (
               <div
                 key={order.id}
-                className="bg-white rounded-2xl border border-emerald-200 shadow-sm p-4 space-y-3 opacity-90 hover:opacity-100 transition"
+                className="bg-white rounded-2xl border border-emerald-200 shadow-sm p-4 space-y-3.5 opacity-95 hover:opacity-100 transition"
               >
                 <div className="flex items-center justify-between">
-                  <div>
-                    <span className="font-display font-extrabold text-base text-slate-900 block">
-                      {order.orderNumber}
-                    </span>
-                    <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-display font-bold text-xs uppercase tracking-wide">
                       {order.table?.label || `Table ${order.table?.tableNumber}`}
                     </span>
+                    <span className="font-display font-bold text-sm text-slate-900">
+                      #{order.orderNumber}
+                    </span>
                   </div>
-                  <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full uppercase">
                     {order.status}
                   </span>
                 </div>
 
-                <div className="space-y-1 text-xs text-slate-600 border-t border-slate-100 pt-1">
+                <div className="space-y-1.5 text-xs text-slate-700 border-t border-slate-100 pt-1.5">
                   {order.items.map((item) => (
-                    <div key={item.id} className="flex justify-between">
+                    <div key={item.id} className="flex justify-between font-medium">
                       <span>{item.quantity}x {item.dish.name}</span>
+                      <span className="text-slate-400 text-[11px]">${Number(item.subtotal).toFixed(2)}</span>
                     </div>
                   ))}
                 </div>
@@ -389,9 +516,9 @@ export const OrdersKDSPage: React.FC = () => {
                 {order.status === "READY" && (
                   <button
                     onClick={() => updateStatus(order.id, "SERVED")}
-                    className="w-full py-2 rounded-xl font-bold text-xs bg-slate-800 hover:bg-slate-900 text-white shadow-sm flex items-center justify-center gap-1.5 transition"
+                    className="w-full py-2.5 rounded-xl font-bold text-xs bg-slate-900 hover:bg-slate-800 text-white shadow-sm flex items-center justify-center gap-2 transition cursor-pointer"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-accent" /> Mark Served & Complete
+                    <Check className="w-4 h-4 text-emerald-400" /> Mark Delivered & Complete
                   </button>
                 )}
               </div>
@@ -410,4 +537,3 @@ export const OrdersKDSPage: React.FC = () => {
 };
 
 export default OrdersKDSPage;
-
