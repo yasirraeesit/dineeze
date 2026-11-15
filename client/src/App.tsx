@@ -10,6 +10,8 @@ import CustomerMenuPage from "./pages/CustomerMenuPage";
 // Dashboard Pages
 import DashboardLayout from "./components/DashboardLayout";
 import OrdersKDSPage from "./pages/dashboard/OrdersKDSPage";
+import FloorBoardPage from "./pages/dashboard/FloorBoardPage";
+import AnalyticsPage from "./pages/dashboard/AnalyticsPage";
 import MenuBuilderPage from "./pages/dashboard/MenuBuilderPage";
 import TablesPage from "./pages/dashboard/TablesPage";
 import SettingsPage from "./pages/dashboard/SettingsPage";
@@ -30,6 +32,8 @@ export const App: React.FC = () => {
         <Route path="/dashboard" element={<DashboardLayout />}>
           <Route index element={<Navigate to="/dashboard/orders" replace />} />
           <Route path="orders" element={<OrdersKDSPage />} />
+          <Route path="floor" element={<FloorBoardPage />} />
+          <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="menu" element={<MenuBuilderPage />} />
           <Route path="tables" element={<TablesPage />} />
           <Route path="settings" element={<SettingsPage />} />

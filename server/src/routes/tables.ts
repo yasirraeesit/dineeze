@@ -44,6 +44,85 @@ router.get("/", verifyRestaurantOwner, async (req: Request, res: Response) => {
   }
 });
 
+// Live Floor Status for restaurant tables
+router.get("/status", verifyRestaurantOwner, async (req: Request, res: Response) => {
+  const restaurantId = req.query.restaurantId as string;
+  try {
+    const tables = await prisma.table.findMany({
+      where: { restaurantId },
+      orderBy: { tableNumber: "asc" },
+      include: {
+        orders: {
+          where: {
+            OR: [
+              { status: { in: ["PENDING", "CONFIRMED", "PREPARING", "READY"] } },
+              { status: "SERVED", paymentStatus: "UNPAID" },
+            ],
+          },
+          orderBy: { createdAt: "desc" },
+          include: {
+            items: {
+              include: { dish: true },
+            },
+          },
+        },
+      },
+    });
+
+    const enrichedTables = tables.map((t) => {
+      const activeOrders = t.orders;
+
+      // Determine Floor Status:
+      // AVAILABLE, WAITING_FOOD, READY_TO_SERVE, BILL_PENDING
+      let floorStatus: "AVAILABLE" | "WAITING_FOOD" | "READY_TO_SERVE" | "BILL_PENDING" = "AVAILABLE";
+
+      if (activeOrders.length === 0) {
+        floorStatus = "AVAILABLE";
+      } else if (activeOrders.some((o) => o.status === "READY")) {
+        floorStatus = "READY_TO_SERVE";
+      } else if (activeOrders.some((o) => o.status === "PENDING" || o.status === "PREPARING" || o.status === "CONFIRMED")) {
+        floorStatus = "WAITING_FOOD";
+      } else if (activeOrders.every((o) => o.status === "SERVED" && o.paymentStatus === "UNPAID")) {
+        floorStatus = "BILL_PENDING";
+      } else {
+        floorStatus = "WAITING_FOOD";
+      }
+
+      const unpaidRunningTotal = activeOrders
+        .filter((o) => o.paymentStatus === "UNPAID")
+        .reduce((sum, o) => sum + Number(o.totalAmount), 0);
+
+      const earliestCreatedAt = activeOrders.length > 0
+        ? Math.min(...activeOrders.map((o) => new Date(o.createdAt).getTime()))
+        : null;
+
+      const elapsedMinutes = earliestCreatedAt
+        ? Math.max(0, Math.floor((Date.now() - earliestCreatedAt) / 60000))
+        : 0;
+
+      return {
+        id: t.id,
+        restaurantId: t.restaurantId,
+        tableNumber: t.tableNumber,
+        label: t.label,
+        capacity: t.capacity,
+        qrToken: t.qrToken,
+        isActive: t.isActive,
+        floorStatus,
+        unpaidRunningTotal: Number(unpaidRunningTotal.toFixed(2)),
+        elapsedMinutes,
+        activeOrdersCount: activeOrders.length,
+        activeOrders,
+      };
+    });
+
+    return res.json({ tables: enrichedTables });
+  } catch (error) {
+    console.error("Floor status error:", error);
+    return res.status(500).json({ error: "Failed to load floor status" });
+  }
+});
+
 // Add new table
 router.post("/", verifyRestaurantOwner, validateBody(createTableSchema), async (req: Request, res: Response) => {
   const { restaurantId, tableNumber, label, capacity } = req.body;

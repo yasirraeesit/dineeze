@@ -134,6 +134,8 @@ model Order {
   customerPhone String?
   notes         String?
   paymentStatus        PaymentStatus @default(UNPAID)
+  paymentMethod        String?
+  splitCount           Int           @default(1)
   cancelReason         String?
   estimatedWaitMinutes Int?
   rating               Int?

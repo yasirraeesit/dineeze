@@ -18,6 +18,8 @@ import {
   Clock,
   Sparkles,
   RotateCw,
+  LayoutGrid,
+  BarChart3,
 } from "lucide-react";
 import useAuthStore from "../stores/authStore";
 import api from "../utils/api";
@@ -178,6 +180,8 @@ export const DashboardLayout: React.FC = () => {
 
   const navItems = [
     { label: "Live KDS Orders", path: "/dashboard/orders", icon: ChefHat, badge: kpis.activeQueueCount > 0 ? kpis.activeQueueCount : undefined },
+    { label: "Live Floor & Bills", path: "/dashboard/floor", icon: LayoutGrid },
+    { label: "Analytics", path: "/dashboard/analytics", icon: BarChart3 },
     { label: "Menu Builder", path: "/dashboard/menu", icon: BookOpen, subtext: `${kpis.totalDishesCount} dishes` },
     { label: "Tables & Posters", path: "/dashboard/tables", icon: QrCode },
     { label: "Brand & Settings", path: "/dashboard/settings", icon: Settings },

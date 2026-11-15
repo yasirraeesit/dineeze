@@ -14,6 +14,7 @@ import tableRoutes from "./routes/tables";
 import uploadRoutes from "./routes/upload";
 import publicRoutes from "./routes/public";
 import orderRoutes from "./routes/orders";
+import analyticsRoutes from "./routes/analytics";
 
 export const app = express();
 export const server = http.createServer(app);
@@ -115,6 +116,7 @@ app.use("/api/menu", menuRoutes);   // Protected owner menu management: /api/men
 app.use("/api/tables", tableRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/orders", orderRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 // 3. Centralized 404 handler
 app.use((_req: Request, res: Response) => {

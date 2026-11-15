@@ -441,6 +441,87 @@ async function runIntegrationTests() {
 
     console.log(`  ✅ PASS: Wait time, prep toggle, feedback, and void reason validated.`);
 
+    // -------------------------------------------------------------------------
+    // TEST (i): Sprint 2 (Live Floor Status, Split-Bill/Payment & Analytics)
+    // -------------------------------------------------------------------------
+    console.log("▶ TEST (i): Verifying live floor status, payment settlement, and analytics API...");
+
+    // 1. Verify GET /api/tables/status
+    // Cross-tenant check: tokenB querying restaurantA tables should return 403
+    const crossTenantFloorRes = await fetch(`${baseUrl}/api/tables/status?restaurantId=${restaurantA.id}`, {
+      headers: { Authorization: `Bearer ${tokenB}` },
+    });
+    if (crossTenantFloorRes.status !== 403) {
+      throw new Error(`TEST (i) FAILED: Expected 403 on cross-tenant floor query, got ${crossTenantFloorRes.status}`);
+    }
+
+    // Authorized floor query returns enriched tables
+    const authFloorRes = await fetch(`${baseUrl}/api/tables/status?restaurantId=${restaurantA.id}`, {
+      headers: { Authorization: `Bearer ${tokenA}` },
+    });
+    const authFloorJson: any = await authFloorRes.json();
+    if (authFloorRes.status !== 200 || !Array.isArray(authFloorJson.tables) || authFloorJson.tables.length === 0) {
+      throw new Error(`TEST (i) FAILED: Floor status returned invalid response, status: ${authFloorRes.status}`);
+    }
+    const targetTable = authFloorJson.tables.find((t: any) => t.id === tableA.id);
+    if (!targetTable || !targetTable.floorStatus) {
+      throw new Error(`TEST (i) FAILED: targetTable not enriched with floorStatus`);
+    }
+
+    // 2. Verify PATCH /api/orders/:id/payment
+    // Cross-tenant check: tokenB attempting to settle restaurantA's order should return 403
+    const crossTenantPayRes = await fetch(`${baseUrl}/api/orders/${createdOrderId}/payment`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenB}`,
+      },
+      body: JSON.stringify({ paymentMethod: "CARD", splitCount: 2 }),
+    });
+    if (crossTenantPayRes.status !== 403) {
+      throw new Error(`TEST (i) FAILED: Expected 403 on cross-tenant payment settlement, got ${crossTenantPayRes.status}`);
+    }
+
+    // Authorized payment settlement
+    const authPayRes = await fetch(`${baseUrl}/api/orders/${createdOrderId}/payment`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenA}`,
+      },
+      body: JSON.stringify({ paymentMethod: "CARD", splitCount: 2 }),
+    });
+    const authPayJson: any = await authPayRes.json();
+    if (authPayRes.status !== 200 || authPayJson.order?.paymentStatus !== "PAID" || authPayJson.order?.paymentMethod !== "CARD") {
+      throw new Error(`TEST (i) FAILED: Payment settlement failed, status: ${authPayRes.status}`);
+    }
+
+    // 3. Verify GET /api/analytics
+    // Cross-tenant check: tokenB querying restaurantA analytics should return 403
+    const crossTenantAnalyticsRes = await fetch(`${baseUrl}/api/analytics?restaurantId=${restaurantA.id}&range=7d`, {
+      headers: { Authorization: `Bearer ${tokenB}` },
+    });
+    if (crossTenantAnalyticsRes.status !== 403) {
+      throw new Error(`TEST (i) FAILED: Expected 403 on cross-tenant analytics query, got ${crossTenantAnalyticsRes.status}`);
+    }
+
+    // Authorized analytics query
+    const authAnalyticsRes = await fetch(`${baseUrl}/api/analytics?restaurantId=${restaurantA.id}&range=7d`, {
+      headers: { Authorization: `Bearer ${tokenA}` },
+    });
+    const authAnalyticsJson: any = await authAnalyticsRes.json();
+    if (
+      authAnalyticsRes.status !== 200 ||
+      typeof authAnalyticsJson.summary?.totalRevenue !== "number" ||
+      !Array.isArray(authAnalyticsJson.dailySeries) ||
+      !Array.isArray(authAnalyticsJson.peakHours) ||
+      authAnalyticsJson.peakHours.length !== 24
+    ) {
+      throw new Error(`TEST (i) FAILED: Analytics response schema invalid: ${JSON.stringify(authAnalyticsJson)}`);
+    }
+
+    console.log(`  ✅ PASS: Floor board, payment settlement, and analytics API verified with multi-tenant isolation.`);
+
     // Cleanup test records
     await prisma.dish.deleteMany({ where: { restaurantId: emptyRestB.id } });
     await prisma.category.deleteMany({ where: { restaurantId: emptyRestB.id } });
@@ -451,7 +532,7 @@ async function runIntegrationTests() {
     await prisma.category.delete({ where: { id: categoryA.id } });
     await prisma.table.delete({ where: { id: tableA.id } });
 
-    console.log("\n🎉 ALL 8 INTEGRATION TESTS PASSED CLEANLY!");
+    console.log("\n🎉 ALL 9 INTEGRATION TESTS PASSED CLEANLY!");
   } catch (error) {
     console.error("❌ Integration test error:", error);
     process.exitCode = 1;

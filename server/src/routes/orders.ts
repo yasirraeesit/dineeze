@@ -56,6 +56,11 @@ const orderFeedbackSchema = z.object({
   feedbackComment: z.string().max(500, "Feedback comment cannot exceed 500 characters").optional(),
 });
 
+const settlePaymentSchema = z.object({
+  paymentMethod: z.enum(["CASH", "CARD", "ONLINE"]),
+  splitCount: z.number().int().min(1).max(20).optional().default(1),
+});
+
 // 1. PUBLIC: Customer places an order via QR token
 // STRICT NON-NEGOTIABLE: SERVER-SIDE PRICE RECALCULATION
 router.post("/", validateBody(createOrderSchema), async (req: Request, res: Response) => {
@@ -473,6 +478,72 @@ router.post(
     } catch (error) {
       console.error("Submit feedback error:", error);
       return res.status(500).json({ error: "Failed to submit feedback" });
+    }
+  }
+);
+
+// 7. OWNER/KDS: Settle payment & mark order paid (with split count & payment method)
+router.patch(
+  "/:id/payment",
+  authenticateJWT,
+  validateBody(settlePaymentSchema),
+  async (req: Request, res: Response) => {
+    try {
+      const order = await prisma.order.findUnique({
+        where: { id: req.params.id },
+        include: { restaurant: true },
+      });
+
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      if (order.restaurant.ownerId !== req.user!.id) {
+        return res.status(403).json({ error: "Forbidden: Multi-tenant access denied" });
+      }
+
+      const nextStatus =
+        order.status === "READY" || order.status === "SERVED"
+          ? "COMPLETED"
+          : order.status;
+
+      const updated = await prisma.order.update({
+        where: { id: req.params.id },
+        data: {
+          paymentStatus: "PAID",
+          paymentMethod: req.body.paymentMethod,
+          splitCount: req.body.splitCount || 1,
+          status: nextStatus,
+        },
+        include: {
+          table: true,
+          restaurant: {
+            select: {
+              id: true,
+              name: true,
+              currency: true,
+              accentColor: true,
+            },
+          },
+          items: {
+            include: { dish: true },
+          },
+        },
+      });
+
+      const io = getIO();
+      if (io) {
+        io.to(`restaurant_${order.restaurantId}`).emit("order_status_updated", updated);
+        io.to(`order_${order.id}`).emit("order_status_updated", updated);
+      }
+
+      return res.json({
+        order: updated,
+        message: "Payment settled successfully",
+      });
+    } catch (error) {
+      console.error("Payment settlement error:", error);
+      return res.status(500).json({ error: "Failed to settle payment" });
     }
   }
 );
