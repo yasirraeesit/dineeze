@@ -19,6 +19,8 @@ export interface User {
   email: string;
   name: string;
   role: string;
+  isStaff?: boolean;
+  restaurantId?: string;
 }
 
 interface AuthState {
@@ -27,6 +29,8 @@ interface AuthState {
   restaurants: Restaurant[];
   activeRestaurant: Restaurant | null;
   setAuth: (token: string, user: User, restaurants?: Restaurant[]) => void;
+  setRestaurants: (restaurants: Restaurant[]) => void;
+  addRestaurant: (restaurant: Restaurant) => void;
   setActiveRestaurant: (restaurant: Restaurant) => void;
   updateActiveRestaurant: (data: Partial<Restaurant>) => void;
   logout: () => void;
@@ -51,6 +55,18 @@ export const useAuthStore = create<AuthState>((set) => {
         localStorage.setItem("dineeze_active_restaurant", JSON.stringify(active));
       }
       set({ token, user, restaurants, activeRestaurant: active });
+    },
+
+    setRestaurants: (restaurants) => {
+      set({ restaurants });
+    },
+
+    addRestaurant: (restaurant) => {
+      set((state) => ({
+        restaurants: [restaurant, ...state.restaurants],
+        activeRestaurant: restaurant,
+      }));
+      localStorage.setItem("dineeze_active_restaurant", JSON.stringify(restaurant));
     },
 
     setActiveRestaurant: (restaurant) => {

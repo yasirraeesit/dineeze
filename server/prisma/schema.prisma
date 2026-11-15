@@ -29,6 +29,12 @@ enum PaymentStatus {
   PAID
 }
 
+enum StaffRole {
+  MANAGER
+  KITCHEN
+  WAITER
+}
+
 model User {
   id           String       @id @default(cuid())
   email        String       @unique
@@ -60,6 +66,8 @@ model Restaurant {
   dishes      Dish[]
   tables      Table[]
   orders      Order[]
+  staff       StaffMember[]
+  auditLogs   OrderAuditLog[]
 
   @@index([ownerId])
 }
@@ -143,6 +151,7 @@ model Order {
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
   items                OrderItem[]
+  auditLogs            OrderAuditLog[]
 
   @@index([restaurantId])
   @@index([tableId])
@@ -162,5 +171,37 @@ model OrderItem {
 
   @@index([orderId])
   @@index([dishId])
+}
+
+model StaffMember {
+  id                String      @id @default(cuid())
+  name              String
+  email             String
+  pinOrPasswordHash String
+  role              StaffRole   @default(WAITER)
+  isActive          Boolean     @default(true)
+  restaurantId      String
+  restaurant        Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@unique([restaurantId, email])
+  @@index([restaurantId])
+}
+
+model OrderAuditLog {
+  id           String      @id @default(cuid())
+  action       String
+  actorName    String
+  actorRole    String
+  details      String?
+  orderId      String
+  order        Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  restaurantId String
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdAt    DateTime    @default(now())
+
+  @@index([restaurantId])
+  @@index([orderId])
 }
 

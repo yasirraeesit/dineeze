@@ -20,6 +20,14 @@ const loginSchema = z.object({
   password: z.string(),
 });
 
+const staffLoginSchema = z.object({
+  restaurantIdentifier: z.string().min(1, "Restaurant slug or ID is required").optional(),
+  restaurantSlug: z.string().optional(),
+  restaurantId: z.string().optional(),
+  email: z.string().email("Valid staff email is required"),
+  pinOrPassword: z.string().min(4, "PIN or password is required"),
+});
+
 router.post("/register", validateBody(registerSchema), async (req: Request, res: Response) => {
   const { email, password, name } = req.body;
 
@@ -114,8 +122,136 @@ router.post("/login", validateBody(loginSchema), async (req: Request, res: Respo
   }
 });
 
+router.post("/staff-login", validateBody(staffLoginSchema), async (req: Request, res: Response) => {
+  const { email, pinOrPassword } = req.body;
+  const identifier = req.body.restaurantIdentifier || req.body.restaurantSlug || req.body.restaurantId;
+
+  if (!identifier) {
+    return res.status(400).json({ error: "Restaurant slug or ID is required" });
+  }
+
+  try {
+    // 1. Locate restaurant branch
+    const restaurant = await prisma.restaurant.findFirst({
+      where: {
+        OR: [
+          { id: identifier },
+          { slug: identifier.toLowerCase() },
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        currency: true,
+        accentColor: true,
+        logoUrl: true,
+        isActive: true,
+      },
+    });
+
+    if (!restaurant) {
+      return res.status(404).json({ error: "Restaurant branch not found" });
+    }
+
+    if (!restaurant.isActive) {
+      return res.status(403).json({ error: "This restaurant branch is currently inactive" });
+    }
+
+    // 2. Locate staff member in this restaurant
+    const staff = await prisma.staffMember.findFirst({
+      where: {
+        restaurantId: restaurant.id,
+        email: email.toLowerCase(),
+      },
+    });
+
+    if (!staff) {
+      return res.status(401).json({ error: "Invalid staff credentials or account does not exist" });
+    }
+
+    if (!staff.isActive) {
+      return res.status(403).json({ error: "Your staff account has been deactivated. Please contact your manager." });
+    }
+
+    // 3. Verify PIN or Password
+    const isValid = await bcrypt.compare(pinOrPassword, staff.pinOrPasswordHash);
+    if (!isValid) {
+      return res.status(401).json({ error: "Invalid staff credentials" });
+    }
+
+    // 4. Issue scoped JWT
+    const token = jwt.sign(
+      {
+        id: staff.id,
+        staffId: staff.id,
+        email: staff.email,
+        role: staff.role,
+        isStaff: true,
+        restaurantId: restaurant.id,
+        actorName: staff.name,
+        actorRole: staff.role,
+      },
+      JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    return res.json({
+      token,
+      staff: {
+        id: staff.id,
+        name: staff.name,
+        email: staff.email,
+        role: staff.role,
+        restaurantId: restaurant.id,
+        restaurantName: restaurant.name,
+        restaurantSlug: restaurant.slug,
+      },
+      restaurant,
+    });
+  } catch (error) {
+    console.error("Staff login error:", error);
+    return res.status(500).json({ error: "Failed to log in staff member" });
+  }
+});
+
 router.get("/me", authenticateJWT, async (req: Request, res: Response) => {
   try {
+    // If authenticated via staff JWT
+    if (req.user!.isStaff) {
+      const staff = await prisma.staffMember.findUnique({
+        where: { id: req.user!.id },
+        include: {
+          restaurant: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              accentColor: true,
+              currency: true,
+              logoUrl: true,
+            },
+          },
+        },
+      });
+
+      if (!staff || !staff.isActive) {
+        return res.status(401).json({ error: "Staff member session expired or account deactivated" });
+      }
+
+      return res.json({
+        user: {
+          id: staff.id,
+          name: staff.name,
+          email: staff.email,
+          role: staff.role,
+          isStaff: true,
+          restaurantId: staff.restaurantId,
+          restaurants: [staff.restaurant],
+        },
+      });
+    }
+
     const user = await prisma.user.findUnique({
       where: { id: req.user!.id },
       select: {

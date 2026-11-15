@@ -1,15 +1,15 @@
 import { Router, Request, Response } from "express";
 import { z } from "zod";
 import prisma from "../prisma";
-import { authenticateJWT, verifyRestaurantOwner } from "../middlewares/auth";
+import { authenticateJWT, verifyRestaurantOwner, requireRole } from "../middlewares/auth";
 import { validateBody } from "../middlewares/validate";
 
 const router = Router();
 
-// Protect dashboard menu management routes with owner JWT authentication
-router.use("/categories", authenticateJWT);
-router.use("/items", authenticateJWT);
-router.use("/seed-sample", authenticateJWT);
+// Protect dashboard menu management routes with owner/manager JWT authentication
+router.use("/categories", authenticateJWT, requireRole("MANAGER"));
+router.use("/items", authenticateJWT, requireRole("MANAGER"));
+router.use("/seed-sample", authenticateJWT, requireRole("MANAGER"));
 
 // Validation Schemas
 const categorySchema = z.object({

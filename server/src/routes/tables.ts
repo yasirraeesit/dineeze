@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import crypto from "crypto";
 import { z } from "zod";
 import prisma from "../prisma";
-import { authenticateJWT, verifyRestaurantOwner } from "../middlewares/auth";
+import { authenticateJWT, verifyRestaurantOwner, requireRole } from "../middlewares/auth";
 import { validateBody } from "../middlewares/validate";
 
 const router = Router();
@@ -15,8 +15,8 @@ const createTableSchema = z.object({
   capacity: z.number().int().positive().default(4),
 });
 
-// List tables for restaurant
-router.get("/", verifyRestaurantOwner, async (req: Request, res: Response) => {
+// List tables for restaurant (Owner, Manager, Waiter)
+router.get("/", verifyRestaurantOwner, requireRole("MANAGER", "WAITER"), async (req: Request, res: Response) => {
   const restaurantId = req.query.restaurantId as string;
   try {
     const tables = await prisma.table.findMany({
@@ -44,8 +44,8 @@ router.get("/", verifyRestaurantOwner, async (req: Request, res: Response) => {
   }
 });
 
-// Live Floor Status for restaurant tables
-router.get("/status", verifyRestaurantOwner, async (req: Request, res: Response) => {
+// Live Floor Status for restaurant tables (Owner, Manager, Waiter)
+router.get("/status", verifyRestaurantOwner, requireRole("MANAGER", "WAITER"), async (req: Request, res: Response) => {
   const restaurantId = req.query.restaurantId as string;
   try {
     const tables = await prisma.table.findMany({
@@ -123,8 +123,8 @@ router.get("/status", verifyRestaurantOwner, async (req: Request, res: Response)
   }
 });
 
-// Add new table
-router.post("/", verifyRestaurantOwner, validateBody(createTableSchema), async (req: Request, res: Response) => {
+// Add new table (Owner and Manager only)
+router.post("/", verifyRestaurantOwner, requireRole("MANAGER"), validateBody(createTableSchema), async (req: Request, res: Response) => {
   const { restaurantId, tableNumber, label, capacity } = req.body;
 
   try {
@@ -183,7 +183,11 @@ router.patch("/:id/regenerate-token", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Table not found" });
     }
 
-    if (table.restaurant.ownerId !== req.user!.id) {
+    const isAuthorized =
+      (req.user!.isStaff && req.user!.restaurantId === table.restaurantId && req.user!.role === "MANAGER") ||
+      (!req.user!.isStaff && table.restaurant.ownerId === req.user!.id);
+
+    if (!isAuthorized) {
       return res.status(403).json({ error: "Forbidden: Multi-tenant access denied" });
     }
 
@@ -214,7 +218,11 @@ router.delete("/:id", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Table not found" });
     }
 
-    if (table.restaurant.ownerId !== req.user!.id) {
+    const isAuthorized =
+      (req.user!.isStaff && req.user!.restaurantId === table.restaurantId && req.user!.role === "MANAGER") ||
+      (!req.user!.isStaff && table.restaurant.ownerId === req.user!.id);
+
+    if (!isAuthorized) {
       return res.status(403).json({ error: "Forbidden: Multi-tenant access denied" });
     }
 

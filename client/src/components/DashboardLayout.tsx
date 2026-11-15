@@ -20,6 +20,9 @@ import {
   RotateCw,
   LayoutGrid,
   BarChart3,
+  Users,
+  Plus,
+  Building2,
 } from "lucide-react";
 import useAuthStore from "../stores/authStore";
 import api from "../utils/api";
@@ -39,7 +42,7 @@ interface DashboardKPIs {
 export const DashboardLayout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, activeRestaurant, restaurants, setAuth, setActiveRestaurant, logout } = useAuthStore();
+  const { user, activeRestaurant, restaurants, setActiveRestaurant, logout } = useAuthStore();
   const socket = useSocket("restaurant", activeRestaurant?.id);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -47,6 +50,17 @@ export const DashboardLayout: React.FC = () => {
   const [isMuted, setIsMuted] = useState(audioChime.getMuted());
   const [isSocketConnected, setIsSocketConnected] = useState(false);
   const [firstTableToken, setFirstTableToken] = useState<string | null>(null);
+
+  // Add Branch Modal state
+  const [addBranchModalOpen, setAddBranchModalOpen] = useState(false);
+  const [branchName, setBranchName] = useState("");
+  const [branchSlug, setBranchSlug] = useState("");
+  const [branchSlugCustom, setBranchSlugCustom] = useState(false);
+  const [branchCurrency, setBranchCurrency] = useState("USD");
+  const [branchTables, setBranchTables] = useState(6);
+  const [branchCloneMenu, setBranchCloneMenu] = useState(true);
+  const [creatingBranch, setCreatingBranch] = useState(false);
+  const [branchError, setBranchError] = useState<string | null>(null);
 
   // Live KPI metrics
   const [kpis, setKpis] = useState<DashboardKPIs>({
@@ -85,26 +99,62 @@ export const DashboardLayout: React.FC = () => {
     return () => window.removeEventListener("click", handleInteraction);
   }, []);
 
-  // Fetch restaurants if not already in store
+  // Fetch branches if logged in as owner
   useEffect(() => {
     const fetchRestaurants = async () => {
+      if (user?.isStaff) return;
       try {
-        const res = await api.get("/api/restaurants");
+        const res = await api.get("/api/restaurants/mine");
         if (res.data?.restaurants) {
+          useAuthStore.getState().setRestaurants(res.data.restaurants);
           if (!activeRestaurant && res.data.restaurants.length > 0) {
             setActiveRestaurant(res.data.restaurants[0]);
           }
-          if (user) {
-            setAuth(localStorage.getItem("dineeze_token") || "", user, res.data.restaurants);
-          }
         }
       } catch (err) {
-        console.error("Failed to fetch restaurants:", err);
+        console.error("Failed to fetch branches:", err);
       }
     };
 
     fetchRestaurants();
-  }, []);
+  }, [user?.isStaff]);
+
+  const handleCreateBranch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!branchName.trim() || !branchSlug.trim()) {
+      setBranchError("Please provide branch name and slug");
+      return;
+    }
+
+    setCreatingBranch(true);
+    setBranchError(null);
+
+    try {
+      const res = await api.post("/api/restaurants", {
+        name: branchName.trim(),
+        slug: branchSlug.trim().toLowerCase(),
+        currency: branchCurrency,
+        tableCount: branchTables,
+        cloneMenuFromRestaurantId: branchCloneMenu && activeRestaurant ? activeRestaurant.id : undefined,
+      });
+
+      const newRest = res.data.restaurant;
+      if (newRest) {
+        useAuthStore.getState().addRestaurant(newRest);
+        setActiveRestaurant(newRest);
+        setAddBranchModalOpen(false);
+        setBranchName("");
+        setBranchSlug("");
+        setBranchSlugCustom(false);
+        setBranchTables(6);
+      }
+    } catch (err: any) {
+      console.error("Failed to create branch:", err);
+      setBranchError(err.response?.data?.error || "Failed to create new branch");
+    } finally {
+      setCreatingBranch(false);
+    }
+  };
 
   // Fetch KPI data & first table token for preview
   const refreshKPIs = async () => {
@@ -178,14 +228,59 @@ export const DashboardLayout: React.FC = () => {
     };
   }, [socket, activeRestaurant?.id]);
 
-  const navItems = [
-    { label: "Live KDS Orders", path: "/dashboard/orders", icon: ChefHat, badge: kpis.activeQueueCount > 0 ? kpis.activeQueueCount : undefined },
-    { label: "Live Floor & Bills", path: "/dashboard/floor", icon: LayoutGrid },
-    { label: "Analytics", path: "/dashboard/analytics", icon: BarChart3 },
-    { label: "Menu Builder", path: "/dashboard/menu", icon: BookOpen, subtext: `${kpis.totalDishesCount} dishes` },
-    { label: "Tables & Posters", path: "/dashboard/tables", icon: QrCode },
-    { label: "Brand & Settings", path: "/dashboard/settings", icon: Settings },
+  const userRole = user?.role || "OWNER";
+  const isStaff = Boolean(user?.isStaff);
+
+  const allNavItems = [
+    {
+      label: "Live KDS Orders",
+      path: "/dashboard/orders",
+      icon: ChefHat,
+      badge: kpis.activeQueueCount > 0 ? kpis.activeQueueCount : undefined,
+      roles: ["OWNER", "MANAGER", "KITCHEN", "WAITER"],
+    },
+    {
+      label: "Live Floor & Bills",
+      path: "/dashboard/floor",
+      icon: LayoutGrid,
+      roles: ["OWNER", "MANAGER", "WAITER"],
+    },
+    {
+      label: "Analytics",
+      path: "/dashboard/analytics",
+      icon: BarChart3,
+      roles: ["OWNER", "MANAGER"],
+    },
+    {
+      label: "Menu Builder",
+      path: "/dashboard/menu",
+      icon: BookOpen,
+      subtext: `${kpis.totalDishesCount} dishes`,
+      roles: ["OWNER", "MANAGER"],
+    },
+    {
+      label: "Tables & Posters",
+      path: "/dashboard/tables",
+      icon: QrCode,
+      roles: ["OWNER", "MANAGER"],
+    },
+    {
+      label: "Team & Staff",
+      path: "/dashboard/team",
+      icon: Users,
+      roles: ["OWNER"],
+    },
+    {
+      label: "Brand & Settings",
+      path: "/dashboard/settings",
+      icon: Settings,
+      roles: ["OWNER"],
+    },
   ];
+
+  const navItems = allNavItems.filter((item) =>
+    item.roles.includes(isStaff ? userRole : "OWNER")
+  );
 
   const handleLogout = () => {
     logout();
@@ -295,7 +390,7 @@ export const DashboardLayout: React.FC = () => {
               <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 group-hover:text-white transition-colors" />
             </button>
 
-            {dropdownOpen && restaurants.length > 0 && (
+            {dropdownOpen && (
               <div className="absolute top-full left-3 right-3 mt-1.5 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1.5 z-50 max-h-56 overflow-y-auto">
                 <div className="px-3 py-1 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                   Your Venues ({restaurants.length})
@@ -325,6 +420,21 @@ export const DashboardLayout: React.FC = () => {
                     )}
                   </button>
                 ))}
+
+                {!isStaff && (
+                  <div className="pt-1.5 mt-1 border-t border-slate-800 px-2">
+                    <button
+                      onClick={() => {
+                        setDropdownOpen(false);
+                        setAddBranchModalOpen(true);
+                      }}
+                      className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold text-emerald-400 hover:bg-emerald-500/10 transition cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Add New Branch</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -390,9 +500,16 @@ export const DashboardLayout: React.FC = () => {
           {/* Owner details & Logout */}
           <div className="flex items-center justify-between px-1.5 pt-1">
             <div className="truncate">
-              <p className="text-xs font-bold text-white truncate leading-tight">
-                {user?.name || "Restaurant Operator"}
-              </p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-xs font-bold text-white truncate leading-tight">
+                  {user?.name || "Restaurant Operator"}
+                </p>
+                {isStaff && (
+                  <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-slate-800 text-emerald-400 border border-slate-700">
+                    {userRole}
+                  </span>
+                )}
+              </div>
               <p className="text-[10px] text-slate-400 truncate">{user?.email}</p>
             </div>
             <button
@@ -415,6 +532,11 @@ export const DashboardLayout: React.FC = () => {
             <span className="font-display font-bold text-sm text-slate-900">
               {activeRestaurant?.name || "Restaurant Dashboard"}
             </span>
+            {isStaff && (
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                Station: {userRole}
+              </span>
+            )}
             <span className="text-slate-300">•</span>
             {/* Live Socket Status Badge */}
             <div
@@ -563,6 +685,146 @@ export const DashboardLayout: React.FC = () => {
           onClick={() => setMobileMenuOpen(false)}
           className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-30 md:hidden"
         />
+      )}
+
+      {/* Add New Branch Modal */}
+      {addBranchModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-emerald-600" />
+                <h3 className="font-display font-bold text-base text-slate-900">
+                  Add New Restaurant Branch
+                </h3>
+              </div>
+              <button
+                onClick={() => setAddBranchModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            {branchError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs">
+                {branchError}
+              </div>
+            )}
+
+            <form onSubmit={handleCreateBranch} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Branch Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Downtown Flagship"
+                  value={branchName}
+                  onChange={(e) => {
+                    setBranchName(e.target.value);
+                    if (!branchSlugCustom) {
+                      setBranchSlug(
+                        e.target.value
+                          .toLowerCase()
+                          .replace(/[^a-z0-9]+/g, "-")
+                          .replace(/(^-|-$)+/g, "")
+                      );
+                    }
+                  }}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Branch URL Slug
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. downtown-flagship"
+                  value={branchSlug}
+                  onChange={(e) => {
+                    setBranchSlug(e.target.value);
+                    setBranchSlugCustom(true);
+                  }}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 font-mono focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Currency
+                  </label>
+                  <select
+                    value={branchCurrency}
+                    onChange={(e) => setBranchCurrency(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white"
+                  >
+                    <option value="USD">USD ($)</option>
+                    <option value="PKR">PKR (Rs.)</option>
+                    <option value="INR">INR (₹)</option>
+                    <option value="GBP">GBP (£)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Initial Tables
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={branchTables}
+                    onChange={(e) => setBranchTables(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200"
+                  />
+                </div>
+              </div>
+
+              {activeRestaurant && (
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
+                  <input
+                    type="checkbox"
+                    id="cloneMenuCheck"
+                    checked={branchCloneMenu}
+                    onChange={(e) => setBranchCloneMenu(e.target.checked)}
+                    className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <label htmlFor="cloneMenuCheck" className="text-xs text-slate-700 cursor-pointer">
+                    <span className="font-bold block text-slate-900">
+                      Clone Menu from {activeRestaurant.name}
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      Copies all categories and dishes into this new branch automatically.
+                    </span>
+                  </label>
+                </div>
+              )}
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAddBranchModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingBranch}
+                  className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md transition disabled:opacity-50"
+                >
+                  {creatingBranch ? "Provisioning..." : "Create Branch"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

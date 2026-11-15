@@ -21,6 +21,7 @@ const createRestaurantSchema = z.object({
   wifiPassword: z.string().optional(),
   description: z.string().optional(),
   tableCount: z.number().int().min(1).max(100).default(6),
+  cloneMenuFromRestaurantId: z.string().optional(),
 });
 
 const updateRestaurantSchema = z.object({
@@ -60,6 +61,31 @@ router.get("/", async (req: Request, res: Response) => {
   }
 });
 
+// Alias for listing owner branches
+router.get("/mine", async (req: Request, res: Response) => {
+  try {
+    const restaurants = await prisma.restaurant.findMany({
+      where: { ownerId: req.user!.id },
+      include: {
+        _count: {
+          select: {
+            tables: true,
+            categories: true,
+            dishes: true,
+            orders: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return res.json({ restaurants });
+  } catch (error) {
+    console.error("List branches error:", error);
+    return res.status(500).json({ error: "Failed to fetch branches" });
+  }
+});
+
 // Setup / Create new restaurant with auto-generated tables in a single transaction
 router.post("/", validateBody(createRestaurantSchema), async (req: Request, res: Response) => {
   const {
@@ -73,6 +99,7 @@ router.post("/", validateBody(createRestaurantSchema), async (req: Request, res:
     wifiPassword,
     description,
     tableCount,
+    cloneMenuFromRestaurantId,
   } = req.body;
 
   try {
@@ -85,9 +112,24 @@ router.post("/", validateBody(createRestaurantSchema), async (req: Request, res:
       return res.status(409).json({ error: "Restaurant URL slug is already taken" });
     }
 
+    // Verify source restaurant ownership if menu cloning was requested
+    if (cloneMenuFromRestaurantId) {
+      const source = await prisma.restaurant.findUnique({
+        where: { id: cloneMenuFromRestaurantId },
+        select: { ownerId: true },
+      });
+
+      if (!source || source.ownerId !== req.user!.id) {
+        return res.status(403).json({
+          error: "Forbidden: Cannot clone menu from an unauthorized restaurant branch",
+        });
+      }
+    }
+
     // Execute in a single Prisma transaction:
     // 1. Create Restaurant
     // 2. Create Table 01 through Table N with UUID qrToken
+    // 3. Clone menu categories & dishes OR create default category
     const result = await prisma.$transaction(async (tx) => {
       const restaurant = await tx.restaurant.create({
         data: {
@@ -124,16 +166,68 @@ router.post("/", validateBody(createRestaurantSchema), async (req: Request, res:
         data: tablesToCreate,
       });
 
-      // Default category "Popular Items"
-      await tx.category.create({
-        data: {
-          restaurantId: restaurant.id,
-          name: "Popular Items",
-          sortOrder: 1,
-          description: "Our signature dishes and favorites",
-          isActive: true,
-        },
-      });
+      if (cloneMenuFromRestaurantId) {
+        const sourceCategories = await tx.category.findMany({
+          where: { restaurantId: cloneMenuFromRestaurantId },
+          include: { dishes: true },
+          orderBy: { sortOrder: "asc" },
+        });
+
+        if (sourceCategories.length > 0) {
+          for (const cat of sourceCategories) {
+            const newCat = await tx.category.create({
+              data: {
+                restaurantId: restaurant.id,
+                name: cat.name,
+                description: cat.description,
+                sortOrder: cat.sortOrder,
+                isActive: cat.isActive,
+              },
+            });
+
+            if (cat.dishes.length > 0) {
+              await tx.dish.createMany({
+                data: cat.dishes.map((d) => ({
+                  restaurantId: restaurant.id,
+                  categoryId: newCat.id,
+                  name: d.name,
+                  description: d.description,
+                  price: d.price,
+                  imageUrl: d.imageUrl,
+                  isAvailable: d.isAvailable,
+                  isVegetarian: d.isVegetarian,
+                  isSpicy: d.isSpicy,
+                  sortOrder: d.sortOrder,
+                  preparationTime: d.preparationTime,
+                  prepTimeMinutes: d.prepTimeMinutes,
+                })),
+              });
+            }
+          }
+        } else {
+          // Fallback if source restaurant has no categories yet
+          await tx.category.create({
+            data: {
+              restaurantId: restaurant.id,
+              name: "Popular Items",
+              sortOrder: 1,
+              description: "Our signature dishes and favorites",
+              isActive: true,
+            },
+          });
+        }
+      } else {
+        // Default category "Popular Items"
+        await tx.category.create({
+          data: {
+            restaurantId: restaurant.id,
+            name: "Popular Items",
+            sortOrder: 1,
+            description: "Our signature dishes and favorites",
+            isActive: true,
+          },
+        });
+      }
 
       return restaurant;
     }, { maxWait: 15000, timeout: 30000 });

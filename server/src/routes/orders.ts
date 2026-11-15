@@ -235,7 +235,71 @@ router.get("/", authenticateJWT, verifyRestaurantOwner, async (req: Request, res
   }
 });
 
-// 3. PUBLIC: Customer tracks live order status by ID (supports /:id and /:id/track)
+// Helper for chronological order audit logging
+async function logOrderAudit({
+  restaurantId,
+  orderId,
+  action,
+  actorName,
+  actorRole,
+  details,
+}: {
+  restaurantId: string;
+  orderId: string;
+  action: string;
+  actorName: string;
+  actorRole: string;
+  details?: string;
+}) {
+  try {
+    await prisma.orderAuditLog.create({
+      data: {
+        restaurantId,
+        orderId,
+        action,
+        actorName,
+        actorRole,
+        details: details || null,
+      },
+    });
+  } catch (err) {
+    console.error("Order audit logging error:", err);
+  }
+}
+
+// 3. OWNER/STAFF: List order activity audit logs
+router.get(
+  "/audit-logs",
+  authenticateJWT,
+  verifyRestaurantOwner,
+  async (req: Request, res: Response) => {
+    const restaurantId = req.query.restaurantId as string;
+    try {
+      const logs = await prisma.orderAuditLog.findMany({
+        where: { restaurantId },
+        include: {
+          order: {
+            select: {
+              id: true,
+              orderNumber: true,
+              status: true,
+              table: { select: { tableNumber: true, label: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      });
+
+      return res.json({ auditLogs: logs });
+    } catch (error) {
+      console.error("List audit logs error:", error);
+      return res.status(500).json({ error: "Failed to list audit logs" });
+    }
+  }
+);
+
+// 4. PUBLIC: Customer tracks live order status by ID (supports /:id and /:id/track)
 const handleGetSingleOrder = async (req: Request, res: Response) => {
   try {
     const order = await prisma.order.findUnique({
@@ -296,9 +360,18 @@ router.patch(
         return res.status(404).json({ error: "Order not found" });
       }
 
-      // Verify owner authorization
-      if (order.restaurant.ownerId !== req.user!.id) {
+      // Verify owner or staff authorization
+      const isAuthorized =
+        (req.user!.isStaff && req.user!.restaurantId === order.restaurantId) ||
+        (!req.user!.isStaff && order.restaurant.ownerId === req.user!.id);
+
+      if (!isAuthorized) {
         return res.status(403).json({ error: "Forbidden: Multi-tenant access denied" });
+      }
+
+      // Role check for staff
+      if (req.user!.isStaff && !["MANAGER", "KITCHEN", "WAITER"].includes(req.user!.role)) {
+        return res.status(403).json({ error: "Forbidden: Your staff role cannot update order status" });
       }
 
       const updateData: any = { status: req.body.status };
@@ -323,6 +396,26 @@ router.patch(
             include: { dish: true },
           },
         },
+      });
+
+      // Record chronological order audit log
+      let auditAction = req.body.status;
+      if (req.body.status === "PREPARING") auditAction = "ACCEPTED";
+      else if (req.body.status === "READY") auditAction = "MARKED_READY";
+      else if (req.body.status === "CANCELLED") auditAction = "CANCELLED";
+      else if (req.body.status === "SERVED") auditAction = "MARKED_SERVED";
+      else if (req.body.status === "COMPLETED") auditAction = "COMPLETED";
+
+      const actorName = req.user!.actorName || (req.user!.isStaff ? "Staff" : "Owner");
+      const actorRole = req.user!.actorRole || (req.user!.isStaff ? req.user!.role : "OWNER");
+
+      await logOrderAudit({
+        restaurantId: order.restaurantId,
+        orderId: order.id,
+        action: auditAction,
+        actorName,
+        actorRole,
+        details: req.body.cancelReason ? `Reason: ${req.body.cancelReason}` : undefined,
       });
 
       // Emit real-time updates to BOTH restaurant room and customer order room
@@ -360,13 +453,22 @@ router.patch(
         return res.status(404).json({ error: "Order not found" });
       }
 
-      if (order.restaurant.ownerId !== req.user!.id) {
+      const isAuthorized =
+        (req.user!.isStaff && req.user!.restaurantId === order.restaurantId) ||
+        (!req.user!.isStaff && order.restaurant.ownerId === req.user!.id);
+
+      if (!isAuthorized) {
         return res.status(403).json({ error: "Forbidden: Multi-tenant access denied" });
+      }
+
+      if (req.user!.isStaff && !["MANAGER", "KITCHEN"].includes(req.user!.role)) {
+        return res.status(403).json({ error: "Forbidden: Only kitchen staff and managers can update prep status" });
       }
 
       // Check item belongs to order
       const existingItem = await prisma.orderItem.findFirst({
         where: { id: itemId, orderId },
+        include: { dish: { select: { name: true } } },
       });
 
       if (!existingItem) {
@@ -377,6 +479,19 @@ router.patch(
         where: { id: itemId },
         data: { isPrepared },
         include: { dish: true },
+      });
+
+      // Record audit log
+      const actorName = req.user!.actorName || (req.user!.isStaff ? "Staff" : "Kitchen Staff");
+      const actorRole = req.user!.actorRole || (req.user!.isStaff ? req.user!.role : "OWNER");
+
+      await logOrderAudit({
+        restaurantId: order.restaurantId,
+        orderId: order.id,
+        action: isPrepared ? "ITEM_PREPARED" : "ITEM_UNPREPARED",
+        actorName,
+        actorRole,
+        details: `${isPrepared ? "Prepared" : "Reset"}: ${existingItem.dish?.name || "Dish item"}`,
       });
 
       // Emit real-time item update to both restaurant and order rooms
@@ -498,8 +613,16 @@ router.patch(
         return res.status(404).json({ error: "Order not found" });
       }
 
-      if (order.restaurant.ownerId !== req.user!.id) {
+      const isAuthorized =
+        (req.user!.isStaff && req.user!.restaurantId === order.restaurantId) ||
+        (!req.user!.isStaff && order.restaurant.ownerId === req.user!.id);
+
+      if (!isAuthorized) {
         return res.status(403).json({ error: "Forbidden: Multi-tenant access denied" });
+      }
+
+      if (req.user!.isStaff && !["MANAGER", "WAITER"].includes(req.user!.role)) {
+        return res.status(403).json({ error: "Forbidden: Only waiters and managers can settle payment" });
       }
 
       const nextStatus =
@@ -529,6 +652,19 @@ router.patch(
             include: { dish: true },
           },
         },
+      });
+
+      // Record chronological order audit log
+      const actorName = req.user!.actorName || (req.user!.isStaff ? "Staff" : "Owner");
+      const actorRole = req.user!.actorRole || (req.user!.isStaff ? req.user!.role : "OWNER");
+
+      await logOrderAudit({
+        restaurantId: order.restaurantId,
+        orderId: order.id,
+        action: "SETTLED_PAYMENT",
+        actorName,
+        actorRole,
+        details: `Method: ${req.body.paymentMethod}, Split: ${req.body.splitCount || 1}`,
       });
 
       const io = getIO();

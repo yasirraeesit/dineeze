@@ -6,6 +6,11 @@ export interface AuthenticatedUser {
   id: string;
   email: string;
   role: string;
+  isStaff?: boolean;
+  staffId?: string;
+  restaurantId?: string;
+  actorName?: string;
+  actorRole?: string;
 }
 
 declare global {
@@ -42,7 +47,7 @@ export const authenticateJWT = (
 
 /**
  * Strict Multi-Tenant Isolation Middleware:
- * Verifies that the authenticated user owns the requested restaurant.
+ * Verifies that the authenticated user owns or is authorized staff for the requested restaurant.
  */
 export const verifyRestaurantOwner = async (
   req: Request,
@@ -64,6 +69,17 @@ export const verifyRestaurantOwner = async (
   }
 
   try {
+    // If authenticated via Staff JWT
+    if (req.user.isStaff) {
+      if (req.user.restaurantId !== restaurantId) {
+        return res.status(403).json({
+          error: "Forbidden: Access denied to this restaurant. Multi-tenant violation.",
+        });
+      }
+      return next();
+    }
+
+    // Owner JWT: verify ownership of the restaurant
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: restaurantId },
       select: { ownerId: true },
@@ -84,5 +100,32 @@ export const verifyRestaurantOwner = async (
     console.error("verifyRestaurantOwner error:", error);
     return res.status(500).json({ error: "Internal server error verifying tenant access" });
   }
+};
+
+/**
+ * Role-Based Access Control Middleware:
+ * Ensures the authenticated user or staff member has one of the allowed roles.
+ * System owners are always permitted.
+ */
+export const requireRole = (...allowedRoles: string[]) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized: User not authenticated" });
+    }
+
+    // System owners have blanket access across all owner capabilities
+    if (!req.user.isStaff && req.user.role === "OWNER") {
+      return next();
+    }
+
+    // Staff member role verification
+    if (req.user.isStaff && allowedRoles.includes(req.user.role)) {
+      return next();
+    }
+
+    return res.status(403).json({
+      error: `Forbidden: Role '${req.user.role}' is not authorized for this resource`,
+    });
+  };
 };
 

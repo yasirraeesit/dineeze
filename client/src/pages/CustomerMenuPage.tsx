@@ -20,6 +20,7 @@ import {
   VolumeX,
   Clock,
   Star,
+  Sparkles,
 } from "lucide-react";
 import api from "../utils/api";
 import useCartStore from "../stores/cartStore";
@@ -99,6 +100,10 @@ export const CustomerMenuPage: React.FC = () => {
     return localStorage.getItem("dineeze_guest_muted") === "true";
   });
 
+  // Smart Cart Upsells
+  const [upsells, setUpsells] = useState<any[]>([]);
+  const [, setLoadingUpsells] = useState(false);
+
   const toggleMute = () => {
     setIsMuted((prev) => {
       const next = !prev;
@@ -116,6 +121,32 @@ export const CustomerMenuPage: React.FC = () => {
       cart.initCart(qrToken);
     }
   }, [qrToken]);
+
+  // Fetch Smart Cart Upsell Recommendations whenever cart items change
+  useEffect(() => {
+    if (!qrToken || cart.items.length === 0) {
+      setUpsells([]);
+      return;
+    }
+
+    const fetchUpsells = async () => {
+      try {
+        setLoadingUpsells(true);
+        const itemIds = cart.items.map((i) => i.dishId).join(",");
+        const res = await api.get(`/api/menu/${qrToken}/upsells?itemIds=${itemIds}`);
+        if (res.data?.upsells) {
+          const cartDishIds = new Set(cart.items.map((i) => i.dishId));
+          setUpsells(res.data.upsells.filter((u: any) => !cartDishIds.has(u.id)));
+        }
+      } catch (err) {
+        console.warn("Could not load smart upsells:", err);
+      } finally {
+        setLoadingUpsells(false);
+      }
+    };
+
+    fetchUpsells();
+  }, [qrToken, cart.items.length, drawerOpen]);
 
   // Fetch Public Menu & Table data
   useEffect(() => {
@@ -619,6 +650,66 @@ export const CustomerMenuPage: React.FC = () => {
                   </div>
                 ))}
               </div>
+
+              {/* Smart Cart Upsell Carousel: "Pairs Well With Your Order" */}
+              {upsells.length > 0 && (
+                <div className="pt-3 pb-1 border-t border-slate-100 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Pairs Well With Your Order</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400">Frequently ordered together</span>
+                  </div>
+
+                  <div className="flex gap-2.5 overflow-x-auto pb-1.5 scrollbar-none snap-x">
+                    {upsells.map((dish) => (
+                      <div
+                        key={dish.id}
+                        className="min-w-[170px] max-w-[190px] shrink-0 p-2.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col justify-between snap-start transition hover:border-slate-300"
+                      >
+                        <div className="flex items-start gap-2">
+                          {dish.imageUrl ? (
+                            <img
+                              src={dish.imageUrl}
+                              alt={dish.name}
+                              className="w-10 h-10 rounded-xl object-cover shrink-0"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-xl bg-slate-200 text-slate-500 flex items-center justify-center shrink-0 text-xs font-bold">
+                              🍽️
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="font-bold text-[11px] text-slate-900 truncate leading-tight">
+                              {dish.name}
+                            </p>
+                            <p className="text-[11px] font-mono font-bold text-emerald-600 mt-0.5">
+                              {formatCurrency(dish.price, restaurant?.currency)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            cart.addItem({
+                              id: dish.id,
+                              name: dish.name,
+                              price: Number(dish.price),
+                              imageUrl: dish.imageUrl || undefined,
+                            });
+                          }}
+                          className="mt-2 w-full py-1.5 px-2 rounded-xl text-[11px] font-bold text-white transition flex items-center justify-center gap-1 shadow-xs cursor-pointer active:scale-95"
+                          style={{ backgroundColor: accent }}
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>Add to Order</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Customer Name & Notes */}
               <div className="space-y-2 pt-2 border-t border-slate-100">

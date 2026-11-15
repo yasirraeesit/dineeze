@@ -1,9 +1,10 @@
 import { Router, Request, Response } from "express";
 import prisma from "../prisma";
-import { authenticateJWT, verifyRestaurantOwner } from "../middlewares/auth";
+import { authenticateJWT, verifyRestaurantOwner, requireRole } from "../middlewares/auth";
 
 const router = Router();
 router.use(authenticateJWT);
+router.use(requireRole("MANAGER"));
 
 // GET /api/analytics?restaurantId=...&range=7d|30d
 router.get("/", verifyRestaurantOwner, async (req: Request, res: Response) => {

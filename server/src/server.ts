@@ -15,6 +15,7 @@ import uploadRoutes from "./routes/upload";
 import publicRoutes from "./routes/public";
 import orderRoutes from "./routes/orders";
 import analyticsRoutes from "./routes/analytics";
+import staffRoutes from "./routes/staff";
 
 export const app = express();
 export const server = http.createServer(app);
@@ -117,6 +118,7 @@ app.use("/api/tables", tableRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/staff", staffRoutes);
 
 // 3. Centralized 404 handler
 app.use((_req: Request, res: Response) => {

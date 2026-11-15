@@ -522,6 +522,217 @@ async function runIntegrationTests() {
 
     console.log(`  ✅ PASS: Floor board, payment settlement, and analytics API verified with multi-tenant isolation.`);
 
+    // ==========================================
+    // TEST (j): Sprint 3 - Multi-Branch, Staff RBAC, Order Audit Log & Smart Cart Upsells
+    // ==========================================
+    console.log("👉 TEST (j): Multi-Branch, Staff RBAC, Audit Logs & Upsells...");
+
+    // 1. Create a second branch with menu cloning
+    const branchSlug = `branch-two-${Date.now()}`;
+    const createBranchRes = await fetch(`${baseUrl}/api/restaurants`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenA}`,
+      },
+      body: JSON.stringify({
+        name: "Branch Two",
+        slug: branchSlug,
+        currency: "USD",
+        tableCount: 3,
+        cloneMenuFromRestaurantId: restaurantA.id,
+      }),
+    });
+    const createBranchJson: any = await createBranchRes.json();
+    if (createBranchRes.status !== 201 || !createBranchJson.restaurant) {
+      throw new Error(`TEST (j) FAILED: Failed to create cloned branch: ${JSON.stringify(createBranchJson)}`);
+    }
+    const branch2 = createBranchJson.restaurant;
+
+    // Verify categories & dishes were cloned
+    const branch2Categories = await prisma.category.findMany({
+      where: { restaurantId: branch2.id },
+      include: { dishes: true },
+    });
+    if (branch2Categories.length === 0 || branch2Categories[0].dishes.length === 0) {
+      throw new Error(`TEST (j) FAILED: Menu was not cloned to new branch`);
+    }
+    const branch2Dish = branch2Categories[0].dishes[0];
+    const branch2Table = branch2.tables[0];
+
+    // Verify GET /api/restaurants/mine
+    const listMineRes = await fetch(`${baseUrl}/api/restaurants/mine`, {
+      headers: { Authorization: `Bearer ${tokenA}` },
+    });
+    const listMineJson: any = await listMineRes.json();
+    if (listMineRes.status !== 200 || listMineJson.restaurants.length < 2) {
+      throw new Error(`TEST (j) FAILED: GET /api/restaurants/mine did not return all owner branches`);
+    }
+
+    // 2. Provision Staff (Kitchen and Waiter)
+    const addKitchenRes = await fetch(`${baseUrl}/api/staff`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenA}`,
+      },
+      body: JSON.stringify({
+        restaurantId: branch2.id,
+        name: "Chef Mario",
+        email: `chef-${Date.now()}@dineeze.test`,
+        pinOrPassword: "kitchen-pin-4321",
+        role: "KITCHEN",
+      }),
+    });
+    const addKitchenJson: any = await addKitchenRes.json();
+    if (addKitchenRes.status !== 201 || !addKitchenJson.staff) {
+      throw new Error(`TEST (j) FAILED: Failed to create kitchen staff: ${JSON.stringify(addKitchenJson)}`);
+    }
+    const kitchenStaff = addKitchenJson.staff;
+
+    const addWaiterRes = await fetch(`${baseUrl}/api/staff`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenA}`,
+      },
+      body: JSON.stringify({
+        restaurantId: branch2.id,
+        name: "Waiter Luigi",
+        email: `waiter-${Date.now()}@dineeze.test`,
+        pinOrPassword: "waiter-pin-1234",
+        role: "WAITER",
+      }),
+    });
+    const addWaiterJson: any = await addWaiterRes.json();
+    const waiterStaff = addWaiterJson.staff;
+
+    // Cross-tenant protection on staff management
+    const crossStaffRes = await fetch(`${baseUrl}/api/staff?restaurantId=${branch2.id}`, {
+      headers: { Authorization: `Bearer ${tokenB}` },
+    });
+    if (crossStaffRes.status !== 403) {
+      throw new Error(`TEST (j) FAILED: Expected 403 for cross-tenant staff access, got ${crossStaffRes.status}`);
+    }
+
+    // 3. Staff Login
+    const staffLoginRes = await fetch(`${baseUrl}/api/auth/staff-login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        restaurantSlug: branch2.slug,
+        email: kitchenStaff.email,
+        pinOrPassword: "kitchen-pin-4321",
+      }),
+    });
+    const staffLoginJson: any = await staffLoginRes.json();
+    if (staffLoginRes.status !== 200 || !staffLoginJson.token || staffLoginJson.staff.role !== "KITCHEN") {
+      throw new Error(`TEST (j) FAILED: Staff login failed: ${JSON.stringify(staffLoginJson)}`);
+    }
+    const kitchenToken = staffLoginJson.token;
+
+    const waiterLoginRes = await fetch(`${baseUrl}/api/auth/staff-login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        restaurantSlug: branch2.slug,
+        email: waiterStaff.email,
+        pinOrPassword: "waiter-pin-1234",
+      }),
+    });
+    const waiterLoginJson: any = await waiterLoginRes.json();
+    const waiterToken = waiterLoginJson.token;
+
+    // 4. Place an order on Branch 2 & test RBAC + Audit Logs
+    const branch2OrderRes = await fetch(`${baseUrl}/api/orders`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        qrToken: branch2Table.qrToken,
+        items: [{ dishId: branch2Dish.id, quantity: 2 }],
+      }),
+    });
+    const branch2OrderJson: any = await branch2OrderRes.json();
+    const b2Order = branch2OrderJson.order;
+    const b2OrderItem = b2Order.items[0];
+
+    // Waiter tries to toggle item prep -> MUST BE 403 FORBIDDEN
+    const waiterPrepRes = await fetch(`${baseUrl}/api/orders/${b2Order.id}/items/${b2OrderItem.id}/prepared`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${waiterToken}`,
+      },
+      body: JSON.stringify({ isPrepared: true }),
+    });
+    if (waiterPrepRes.status !== 403) {
+      throw new Error(`TEST (j) FAILED: Expected 403 when waiter tries to toggle kitchen prep status, got ${waiterPrepRes.status}`);
+    }
+
+    // Kitchen staff toggles item prep -> 200 OK
+    const kitchenPrepRes = await fetch(`${baseUrl}/api/orders/${b2Order.id}/items/${b2OrderItem.id}/prepared`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${kitchenToken}`,
+      },
+      body: JSON.stringify({ isPrepared: true }),
+    });
+    if (kitchenPrepRes.status !== 200) {
+      throw new Error(`TEST (j) FAILED: Kitchen staff failed to update prep status: ${kitchenPrepRes.status}`);
+    }
+
+    // Kitchen staff accepts order (PREPARING)
+    await fetch(`${baseUrl}/api/orders/${b2Order.id}/status`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${kitchenToken}`,
+      },
+      body: JSON.stringify({ status: "PREPARING" }),
+    });
+
+    // Waiter settles payment -> 200 OK
+    const waiterPayRes = await fetch(`${baseUrl}/api/orders/${b2Order.id}/payment`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${waiterToken}`,
+      },
+      body: JSON.stringify({ paymentMethod: "CASH", splitCount: 1 }),
+    });
+    if (waiterPayRes.status !== 200) {
+      throw new Error(`TEST (j) FAILED: Waiter failed to settle payment: ${waiterPayRes.status}`);
+    }
+
+    // 5. Verify Chronological Audit Log
+    const auditLogsRes = await fetch(`${baseUrl}/api/orders/audit-logs?restaurantId=${branch2.id}`, {
+      headers: { Authorization: `Bearer ${tokenA}` },
+    });
+    const auditLogsJson: any = await auditLogsRes.json();
+    if (auditLogsRes.status !== 200 || !Array.isArray(auditLogsJson.auditLogs) || auditLogsJson.auditLogs.length < 3) {
+      throw new Error(`TEST (j) FAILED: Audit logs not properly recorded: ${JSON.stringify(auditLogsJson)}`);
+    }
+
+    // 6. Verify Smart Cart Upsells endpoint
+    const upsellsRes = await fetch(`${baseUrl}/api/menu/${branch2Table.qrToken}/upsells?itemIds=${branch2Dish.id}`);
+    const upsellsJson: any = await upsellsRes.json();
+    if (upsellsRes.status !== 200 || !Array.isArray(upsellsJson.upsells)) {
+      throw new Error(`TEST (j) FAILED: Upsell recommendations endpoint failed: ${JSON.stringify(upsellsJson)}`);
+    }
+
+    console.log(`  ✅ PASS: Multi-branch cloning, staff RBAC, order audit logs, and smart cart upsells verified.`);
+
+    // Cleanup branch 2
+    await prisma.orderAuditLog.deleteMany({ where: { restaurantId: branch2.id } });
+    await prisma.orderItem.deleteMany({ where: { orderId: b2Order.id } });
+    await prisma.order.deleteMany({ where: { restaurantId: branch2.id } });
+    await prisma.staffMember.deleteMany({ where: { restaurantId: branch2.id } });
+    await prisma.dish.deleteMany({ where: { restaurantId: branch2.id } });
+    await prisma.category.deleteMany({ where: { restaurantId: branch2.id } });
+    await prisma.table.deleteMany({ where: { restaurantId: branch2.id } });
+    await prisma.restaurant.delete({ where: { id: branch2.id } });
+
     // Cleanup test records
     await prisma.dish.deleteMany({ where: { restaurantId: emptyRestB.id } });
     await prisma.category.deleteMany({ where: { restaurantId: emptyRestB.id } });
@@ -532,7 +743,7 @@ async function runIntegrationTests() {
     await prisma.category.delete({ where: { id: categoryA.id } });
     await prisma.table.delete({ where: { id: tableA.id } });
 
-    console.log("\n🎉 ALL 9 INTEGRATION TESTS PASSED CLEANLY!");
+    console.log("\n🎉 ALL 10 INTEGRATION TESTS PASSED CLEANLY!");
   } catch (error) {
     console.error("❌ Integration test error:", error);
     process.exitCode = 1;
