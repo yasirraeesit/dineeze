@@ -14,43 +14,68 @@ import {
   Star,
   Check,
   Clock,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
-type SupportedCurrency = "PKR" | "USD" | "GBP" | "INR";
+type SupportedCurrency = "PKR" | "USD" | "INR" | "GBP";
 
-interface PricingTier {
-  starter: string;
-  proAnnual: string;
-  proMonthly: string;
-  unit: string;
+interface PricingPlanData {
+  starter: {
+    monthly: string;
+    annual: string;
+  };
+  growth: {
+    monthly: string;
+    annual: string;
+  };
+  multiBranch: {
+    monthly: string;
+    annual: string;
+  };
 }
 
-const PRICING_DATA: Record<SupportedCurrency, PricingTier> = {
+const PRICING_DATA: Record<SupportedCurrency, PricingPlanData> = {
   PKR: {
-    starter: "Rs. 0",
-    proAnnual: "Rs. 6,500",
-    proMonthly: "Rs. 7,900",
-    unit: "per location / month",
+    starter: { monthly: "Rs. 0", annual: "Rs. 0" },
+    growth: { monthly: "Rs. 6,900", annual: "Rs. 5,500" },
+    multiBranch: { monthly: "Rs. 16,900", annual: "Rs. 13,500" },
   },
   USD: {
-    starter: "$0",
-    proAnnual: "$24",
-    proMonthly: "$29",
-    unit: "per location / month",
-  },
-  GBP: {
-    starter: "£0",
-    proAnnual: "£19",
-    proMonthly: "£24",
-    unit: "per location / month",
+    starter: { monthly: "$0", annual: "$0" },
+    growth: { monthly: "$29", annual: "$23" },
+    multiBranch: { monthly: "$79", annual: "$63" },
   },
   INR: {
-    starter: "₹0",
-    proAnnual: "₹1,999",
-    proMonthly: "₹2,499",
-    unit: "per location / month",
+    starter: { monthly: "₹0", annual: "₹0" },
+    growth: { monthly: "₹1,999", annual: "₹1,599" },
+    multiBranch: { monthly: "₹4,999", annual: "₹3,999" },
+  },
+  GBP: {
+    starter: { monthly: "£0", annual: "£0" },
+    growth: { monthly: "£24", annual: "£19" },
+    multiBranch: { monthly: "£65", annual: "£52" },
   },
 };
+
+const RESTAURANT_FAQS = [
+  {
+    q: "Do my guests need to download an app?",
+    a: "No app download or account creation is ever required. Guests simply scan your table's acrylic QR stand with their native smartphone camera. The responsive digital menu loads in under 0.2 seconds in any mobile browser (Safari, Chrome) with zero friction.",
+  },
+  {
+    q: "Does it work with our existing thermal kitchen printers?",
+    a: "Yes. Dineeze natively supports standard 80mm ESC/POS thermal kitchen printers, wireless Bluetooth printers, and direct browser printing. You can auto-print Kitchen Order Tickets (KOT) as soon as an order is placed, or print on demand from the live KDS and Floor Board.",
+  },
+  {
+    q: "Can different staff members have separate logins?",
+    a: "Yes. Dineeze features granular role-based access control (RBAC). General managers have full operational and financial reporting access, kitchen staff operate an audio-enabled live KDS, and floor waiters use rapid 4-digit PINs. Every order change is logged in the immutable Order Audit Log.",
+  },
+  {
+    q: "How fast can we launch?",
+    a: "Most single-location restaurants are live within 25 minutes. If you already have a physical or PDF menu, send it over and our onboarding team will digitize your catalog, modifier options, categories, and QR stands within 24 hours at zero cost.",
+  },
+];
 
 export const LandingPage: React.FC = () => {
   // Mobile drawer toggle
@@ -59,6 +84,7 @@ export const LandingPage: React.FC = () => {
   // Pricing currency & billing toggle
   const [selectedCurrency, setSelectedCurrency] = useState<SupportedCurrency>("USD");
   const [billingPeriod, setBillingPeriod] = useState<"annual" | "monthly">("annual");
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
 
   // Smooth scroll
   const scrollTo = useCallback((id: string) => {
@@ -680,33 +706,37 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* ========================================================= */}
-      {/* 6. CLEAN SAAS PRICING (STARTER VS. GROWTH MULTI-BRANCH)    */}
+      {/* 6. FLAGSHIP B2B PRICING & RESTAURANT FAQ                   */}
       {/* ========================================================= */}
-      <section id="pricing" className="py-16 sm:py-24 border-b border-stone-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-          <div className="text-center space-y-3 max-w-2xl mx-auto">
-            <span className="text-xs font-bold uppercase tracking-wider text-stone-500">
+      <section id="pricing" className="py-20 sm:py-28 border-b border-stone-200 bg-[#FAF8F5]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
+          {/* Header & Controls */}
+          <div className="text-center space-y-4 max-w-3xl mx-auto">
+            <span className="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider text-stone-600 bg-stone-200/70 border border-stone-300">
               TRANSPARENT SOFTWARE TIERS
             </span>
-            <h2 className="text-3xl sm:text-4xl font-bold font-display text-[#121417] tracking-tight">
-              Predictable pricing, zero percentage cuts
+            <h2 className="text-3xl sm:text-5xl font-extrabold font-display text-[#121417] tracking-tight">
+              Predictable pricing,{" "}
+              <span className="font-serif italic font-normal text-amber-600">
+                zero take rates.
+              </span>
             </h2>
-            <p className="text-sm text-stone-600">
-              No hidden hardware leases. No take rates on food revenue.
+            <p className="text-sm sm:text-base text-stone-600 max-w-2xl mx-auto">
+              No expensive proprietary terminals. No percentage cuts on food revenue. You keep 100% of your guest checks.
             </p>
 
-            {/* Currency & Annual Toggle Bar */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+            {/* Currency Selector + Billing Period Toggle Bar */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-3">
               {/* Currency Selector */}
-              <div className="inline-flex p-1 rounded-xl bg-stone-200/80 border border-stone-300 text-xs font-bold">
-                {(["PKR", "USD", "GBP", "INR"] as SupportedCurrency[]).map((c) => (
+              <div className="inline-flex p-1 rounded-xl bg-stone-200/80 border border-stone-300 text-xs font-bold shadow-xs">
+                {(["PKR", "USD", "INR", "GBP"] as SupportedCurrency[]).map((c) => (
                   <button
                     key={c}
                     onClick={() => setSelectedCurrency(c)}
-                    className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
                       selectedCurrency === c
                         ? "bg-[#121417] text-white shadow-xs"
-                        : "text-stone-600 hover:text-black"
+                        : "text-stone-600 hover:text-stone-900"
                     }`}
                   >
                     {c}
@@ -715,133 +745,354 @@ export const LandingPage: React.FC = () => {
               </div>
 
               {/* Billing Cycle Toggle */}
-              <div className="inline-flex p-1 rounded-xl bg-stone-200/80 border border-stone-300 text-xs font-semibold">
+              <div className="inline-flex p-1 rounded-xl bg-stone-200/80 border border-stone-300 text-xs font-semibold shadow-xs">
                 <button
                   onClick={() => setBillingPeriod("monthly")}
-                  className={`px-3 py-1 rounded-lg transition cursor-pointer ${
+                  className={`px-3.5 py-1.5 rounded-lg transition cursor-pointer ${
                     billingPeriod === "monthly"
                       ? "bg-white text-stone-900 shadow-xs font-bold"
-                      : "text-stone-600"
+                      : "text-stone-600 hover:text-stone-900"
                   }`}
                 >
                   Monthly
                 </button>
                 <button
                   onClick={() => setBillingPeriod("annual")}
-                  className={`px-3 py-1 rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                  className={`px-3.5 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
                     billingPeriod === "annual"
                       ? "bg-[#121417] text-white shadow-xs font-bold"
-                      : "text-stone-600"
+                      : "text-stone-600 hover:text-stone-900"
                   }`}
                 >
-                  Annual (Save 20%)
+                  <span>Annual</span>
+                  <span className="bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    Save 20%
+                  </span>
                 </button>
               </div>
             </div>
           </div>
 
-          {/* 2-Tier Pricing Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto text-left">
+          {/* 3-Tier Linear / Toast High-Contrast Cards Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-7xl mx-auto items-stretch">
             {/* Tier 1: Starter */}
-            <div className="p-8 rounded-2xl border border-stone-200 bg-white space-y-6 flex flex-col justify-between shadow-xs">
-              <div className="space-y-4">
-                <div>
-                  <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">
-                    STARTER TIER
+            <div className="p-8 sm:p-9 rounded-3xl border border-stone-200 bg-white space-y-7 flex flex-col justify-between shadow-xs hover:border-stone-300 transition">
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <span className="inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider text-stone-600 bg-stone-100 border border-stone-200">
+                    Starter
                   </span>
-                  <p className="text-4xl font-extrabold font-display text-[#121417] mt-1">
-                    {PRICING_DATA[selectedCurrency].starter}
+                  <p className="text-xs text-stone-500">
+                    Ideal for single cafés, kiosks, and pop-up coffee bars
                   </p>
-                  <p className="text-xs text-stone-500">Free forever • Single café or pop-up</p>
+                  <div className="pt-2">
+                    <p className="text-4xl sm:text-5xl font-extrabold font-display text-[#121417] tracking-tight">
+                      {PRICING_DATA[selectedCurrency].starter[billingPeriod]}
+                    </p>
+                    <p className="text-xs font-semibold text-emerald-700 mt-1">
+                      Free forever • Up to 10 dining tables
+                    </p>
+                  </div>
                 </div>
 
-                <ul className="space-y-2.5 text-xs text-stone-700 pt-3 border-t border-stone-100">
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    Up to 10 Dining Tables
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    Unlimited Menu Dishes &amp; Categories
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    Real-Time Kitchen KDS with Chime Audio
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    Printable Table-Tent Acrylic QR Stand PDFs
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    Multi-Currency Support (PKR, USD, GBP, INR)
-                  </li>
-                </ul>
+                <div className="space-y-3 pt-4 border-t border-stone-100">
+                  <p className="text-xs font-bold uppercase tracking-wider text-stone-400">
+                    Included capabilities:
+                  </p>
+                  <ul className="space-y-3 text-xs text-stone-700">
+                    <li className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Up to 10 Dining Tables</span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>High-Resolution QR Mobile Guest Menu</span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Real-Time Kitchen KDS with Chime Audio</span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Basic Order &amp; Table Status Tracking</span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Instant Dish 86-ing (Out-of-Stock Toggle)</span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Printable Acrylic QR Table-Tent PDF Export</span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Multi-Currency Display (PKR, USD, INR, GBP)</span>
+                    </li>
+                  </ul>
+                </div>
               </div>
 
-              <Link
-                to="/register"
-                className="w-full py-3.5 rounded-full font-bold bg-stone-100 hover:bg-stone-200 text-stone-900 text-center text-xs transition border border-stone-200"
-              >
-                Start Free Single Branch
-              </Link>
+              <div className="pt-6">
+                <Link
+                  to="/register"
+                  className="w-full py-3.5 rounded-full font-bold bg-stone-100 hover:bg-stone-200 text-stone-900 text-center text-xs transition border border-stone-200 block shadow-2xs"
+                >
+                  Start Free Single Branch
+                </Link>
+              </div>
             </div>
 
-            {/* Tier 2: Growth Pro */}
-            <div className="p-8 rounded-2xl border-2 border-[#121417] bg-white space-y-6 flex flex-col justify-between shadow-sm relative">
-              <span className="absolute -top-3 right-6 bg-[#121417] text-white text-[10px] font-bold px-3 py-0.5 rounded-full">
-                MOST POPULAR
-              </span>
-
-              <div className="space-y-4">
-                <div>
-                  <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">
-                    GROWTH PRO (MULTI-BRANCH)
-                  </span>
-                  <p className="text-4xl font-extrabold font-display text-[#121417] mt-1">
-                    {billingPeriod === "annual"
-                      ? PRICING_DATA[selectedCurrency].proAnnual
-                      : PRICING_DATA[selectedCurrency].proMonthly}
-                    <span className="text-xs font-normal text-stone-500">
-                      {" "}
-                      / {PRICING_DATA[selectedCurrency].unit}
-                    </span>
-                  </p>
-                  <p className="text-xs text-stone-500">
-                    For multi-room dining rooms and expanding hospitality chains
-                  </p>
-                </div>
-
-                <ul className="space-y-2.5 text-xs text-stone-700 pt-3 border-t border-stone-100">
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <strong>Unlimited Tables &amp; Multi-Branch Management</strong>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    Staff Role-Based PIN Access (Manager, Cook, Waiter)
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    Live Table Floor Board &amp; Split-Bill Tracking
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    1-Click Menu Catalog Cloning Across Locations
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    Order Audit Logs &amp; Peak Hour Sales Heatmaps
-                  </li>
-                </ul>
+            {/* Tier 2: Growth (Flagship Obsidian Card) */}
+            <div className="p-8 sm:p-9 rounded-3xl border-2 border-stone-800 bg-[#121417] text-white space-y-7 flex flex-col justify-between shadow-2xl relative lg:-translate-y-3 ring-1 ring-white/10">
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-400 to-amber-500 text-[#121417] text-[10px] font-black uppercase tracking-wider px-3.5 py-1 rounded-full shadow-md flex items-center gap-1 whitespace-nowrap">
+                <span>★</span> MOST POPULAR
               </div>
 
-              <Link
-                to="/register"
-                className="w-full py-3.5 rounded-full font-bold bg-[#121417] hover:bg-stone-800 text-white text-center text-xs transition shadow-xs"
-              >
-                Start 14-Day Free Pro Trial
-              </Link>
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <span className="inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider text-amber-300 bg-amber-400/10 border border-amber-400/20">
+                    Growth Restaurant
+                  </span>
+                  <p className="text-xs text-stone-400">
+                    For full-service bistros, casual dining, and busy bars
+                  </p>
+                  <div className="pt-2">
+                    <div className="flex items-baseline gap-1.5">
+                      <p className="text-4xl sm:text-5xl font-extrabold font-display text-white tracking-tight">
+                        {PRICING_DATA[selectedCurrency].growth[billingPeriod]}
+                      </p>
+                      <span className="text-xs font-normal text-stone-400">
+                        / location / mo
+                      </span>
+                    </div>
+                    <p className="text-[11px] font-semibold text-emerald-400 mt-1">
+                      {billingPeriod === "annual"
+                        ? "Billed annually • Save 20%"
+                        : "Billed monthly • Cancel anytime"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-4 border-t border-stone-800">
+                  <p className="text-xs font-bold uppercase tracking-wider text-amber-400/80">
+                    Everything in Starter, plus:
+                  </p>
+                  <ul className="space-y-3 text-xs text-stone-200">
+                    <li className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <strong className="text-white">Unlimited Tables &amp; Multi-Room Floors</strong>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Live Floor Board with Color-Coded Timers</span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Split-Bill Settlement &amp; Multi-Guest Pay</span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Smart Cart Upsell Engine (+22% Avg Check)</span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>80mm Thermal Receipt &amp; Kitchen KOT Printing</span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Staff Role PIN Access (Manager, Cook, Waiter)</span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Order Audit Logs &amp; Peak Hour Sales Heatmaps</span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Executive Revenue &amp; Category Analytics</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="pt-6">
+                <Link
+                  to="/register"
+                  className="w-full py-4 rounded-full font-bold bg-white hover:bg-stone-100 text-stone-950 text-center text-xs transition shadow-lg flex items-center justify-center gap-2 group"
+                >
+                  <span>Start 14-Day Free Trial</span>
+                  <ArrowRight className="w-4 h-4 text-amber-500 group-hover:translate-x-0.5 transition-transform" />
+                </Link>
+              </div>
+            </div>
+
+            {/* Tier 3: Multi-Branch */}
+            <div className="p-8 sm:p-9 rounded-3xl border border-stone-200 bg-white space-y-7 flex flex-col justify-between shadow-xs hover:border-stone-300 transition">
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <span className="inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider text-purple-700 bg-purple-50 border border-purple-200">
+                    Multi-Branch
+                  </span>
+                  <p className="text-xs text-stone-500">
+                    For hospitality groups, franchises, and multi-unit chains
+                  </p>
+                  <div className="pt-2">
+                    <div className="flex items-baseline gap-1.5">
+                      <p className="text-4xl sm:text-5xl font-extrabold font-display text-[#121417] tracking-tight">
+                        {PRICING_DATA[selectedCurrency].multiBranch[billingPeriod]}
+                      </p>
+                      <span className="text-xs font-normal text-stone-500">
+                        / group / mo
+                      </span>
+                    </div>
+                    <p className="text-[11px] font-semibold text-emerald-700 mt-1">
+                      {billingPeriod === "annual"
+                        ? "Billed annually • Save 20%"
+                        : "Billed monthly • Cancel anytime"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-4 border-t border-stone-100">
+                  <p className="text-xs font-bold uppercase tracking-wider text-stone-400">
+                    Everything in Growth, plus:
+                  </p>
+                  <ul className="space-y-3 text-xs text-stone-700">
+                    <li className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <strong className="text-stone-900">Unlimited Branches &amp; Outlets</strong>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>1-Click Central Menu Catalog Cloning</span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Cross-Branch Consolidated Executive Analytics</span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Centralized Staff Role &amp; Permission Routing</span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Custom Tenant Branding &amp; QR Styling</span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Dedicated Hospitality Account Manager</span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Priority 24/7 Phone &amp; WhatsApp Onboarding</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="pt-6">
+                <Link
+                  to="/register"
+                  className="w-full py-3.5 rounded-full font-bold bg-[#121417] hover:bg-stone-800 text-white text-center text-xs transition block shadow-xs"
+                >
+                  Start Multi-Branch Trial
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {/* Zero-Risk Trust Strip */}
+          <div className="max-w-5xl mx-auto rounded-2xl bg-white border border-stone-200 p-6 sm:p-8 shadow-xs">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+              <div className="flex items-start gap-3.5">
+                <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center shrink-0 border border-stone-200">
+                  <Smartphone className="w-4 h-4 text-stone-700" />
+                </div>
+                <div className="space-y-1">
+                  <p className="font-bold text-xs sm:text-sm text-stone-900">
+                    Zero POS Hardware Lock-In
+                  </p>
+                  <p className="text-xs text-stone-500 leading-relaxed">
+                    Runs on existing tablets, phones, and browser. No proprietary terminal leases.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3.5">
+                <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center shrink-0 border border-stone-200">
+                  <Clock className="w-4 h-4 text-amber-600" />
+                </div>
+                <div className="space-y-1">
+                  <p className="font-bold text-xs sm:text-sm text-stone-900">
+                    Free 24-Hour Menu Setup
+                  </p>
+                  <p className="text-xs text-stone-500 leading-relaxed">
+                    Send us your physical or PDF menu—our team digitizes and configs your catalog for free.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3.5">
+                <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center shrink-0 border border-stone-200">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                </div>
+                <div className="space-y-1">
+                  <p className="font-bold text-xs sm:text-sm text-stone-900">
+                    Cancel or Switch Anytime
+                  </p>
+                  <p className="text-xs text-stone-500 leading-relaxed">
+                    Zero take rates or hidden percentage fees on food revenue. You keep 100% of check sales.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Compact Restaurant FAQ Accordion */}
+          <div className="max-w-3xl mx-auto pt-4 space-y-6">
+            <div className="text-center space-y-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-stone-500">
+                FREQUENTLY ASKED QUESTIONS
+              </span>
+              <h3 className="text-2xl sm:text-3xl font-extrabold font-display text-[#121417] tracking-tight">
+                Everything you need to know
+              </h3>
+              <p className="text-xs sm:text-sm text-stone-600">
+                Common questions from restaurant owners, general managers, and head chefs.
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              {RESTAURANT_FAQS.map((faq, index) => {
+                const isOpen = openFaqIndex === index;
+                return (
+                  <div
+                    key={index}
+                    className="rounded-2xl border border-stone-200 bg-white overflow-hidden transition-all shadow-2xs"
+                  >
+                    <button
+                      onClick={() => setOpenFaqIndex(isOpen ? null : index)}
+                      className="w-full p-5 sm:p-6 text-left flex items-center justify-between gap-4 cursor-pointer hover:bg-stone-50/50 transition-colors"
+                      aria-expanded={isOpen}
+                    >
+                      <span className="font-display font-bold text-sm sm:text-base text-stone-900">
+                        {faq.q}
+                      </span>
+                      <div className="w-7 h-7 rounded-full bg-stone-100 flex items-center justify-center shrink-0 text-stone-600 border border-stone-200">
+                        {isOpen ? (
+                          <ChevronUp className="w-4 h-4" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4" />
+                        )}
+                      </div>
+                    </button>
+                    {isOpen && (
+                      <div className="px-5 sm:px-6 pb-6 pt-1 text-xs sm:text-sm text-stone-600 leading-relaxed border-t border-stone-100 bg-stone-50/30">
+                        {faq.a}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
