@@ -69,6 +69,16 @@ router.get("/:qrToken", async (req: Request, res: Response, next: NextFunction) 
       },
     });
 
+    // Smart Wait Time: Active PENDING/PREPARING orders in kitchen + baseline prep time
+    const activeOrdersCount = await prisma.order.count({
+      where: {
+        restaurantId: table.restaurant.id,
+        status: { in: ["PENDING", "PREPARING"] },
+      },
+    });
+    // Baseline 12 mins + 3 mins per active queued order
+    const estimatedWaitMinutes = 12 + activeOrdersCount * 3;
+
     return res.json({
       restaurant: table.restaurant,
       table: {
@@ -78,6 +88,7 @@ router.get("/:qrToken", async (req: Request, res: Response, next: NextFunction) 
         qrToken: table.qrToken,
       },
       categories,
+      estimatedWaitMinutes,
     });
   } catch (error) {
     console.error("Public menu error:", error);

@@ -30,6 +30,7 @@ const itemSchema = z.object({
   isVegetarian: z.boolean().optional().default(false),
   isSpicy: z.boolean().optional().default(false),
   preparationTime: z.number().int().optional(),
+  prepTimeMinutes: z.number().int().min(1).optional().default(10),
   sortOrder: z.number().int().optional().default(0),
 });
 
@@ -216,6 +217,7 @@ router.post("/items", verifyRestaurantOwner, validateBody(itemSchema), async (re
         isVegetarian: isVegetarian || false,
         isSpicy: isSpicy || false,
         preparationTime: preparationTime || null,
+        prepTimeMinutes: req.body.prepTimeMinutes || 10,
         sortOrder: req.body.sortOrder || 0,
       },
     });

@@ -15,6 +15,11 @@ import {
   Moon,
   Sun,
   Keyboard,
+  Star,
+  CheckSquare,
+  Square,
+  X,
+  Ban,
 } from "lucide-react";
 import api from "../../utils/api";
 import useAuthStore from "../../stores/authStore";
@@ -28,6 +33,7 @@ interface OrderItem {
   unitPrice: number;
   subtotal: number;
   specialInstructions?: string;
+  isPrepared?: boolean;
   dish: {
     id: string;
     name: string;
@@ -44,6 +50,10 @@ interface Order {
   customerName?: string;
   customerPhone?: string;
   notes?: string;
+  cancelReason?: string;
+  estimatedWaitMinutes?: number;
+  rating?: number;
+  feedbackComment?: string;
   createdAt: string;
   table: {
     id?: string;
@@ -72,6 +82,13 @@ export const OrdersKDSPage: React.FC = () => {
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     return localStorage.getItem("dineeze_kds_dark") === "true";
   });
+
+  // Cancel / Void Order Modal State
+  const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null);
+  const [cancelReasonPreset, setCancelReasonPreset] = useState("Out of ingredients");
+  const [customCancelReason, setCustomCancelReason] = useState("");
+  const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   const toggleDarkMode = () => {
     setIsDarkMode((prev) => {
@@ -122,12 +139,43 @@ export const OrdersKDSPage: React.FC = () => {
       );
     };
 
+    const handleItemUpdated = (payload: { orderId: string; itemId: string; isPrepared: boolean }) => {
+      setOrders((prev) =>
+        prev.map((order) => {
+          if (order.id !== payload.orderId) return order;
+          return {
+            ...order,
+            items: order.items.map((item) =>
+              item.id === payload.itemId ? { ...item, isPrepared: payload.isPrepared } : item
+            ),
+          };
+        })
+      );
+    };
+
+    const handleFeedbackReceived = (feedback: { orderId: string; rating: number; feedbackComment?: string }) => {
+      setOrders((prev) =>
+        prev.map((order) => {
+          if (order.id !== feedback.orderId) return order;
+          return {
+            ...order,
+            rating: feedback.rating,
+            feedbackComment: feedback.feedbackComment,
+          };
+        })
+      );
+    };
+
     socket.on("new_order", handleNewOrder);
     socket.on("order_status_updated", handleStatusUpdate);
+    socket.on("order_item_updated", handleItemUpdated);
+    socket.on("order_feedback_received", handleFeedbackReceived);
 
     return () => {
       socket.off("new_order", handleNewOrder);
       socket.off("order_status_updated", handleStatusUpdate);
+      socket.off("order_item_updated", handleItemUpdated);
+      socket.off("order_feedback_received", handleFeedbackReceived);
     };
   }, [socket, activeRestaurant?.id]);
 
@@ -141,6 +189,78 @@ export const OrdersKDSPage: React.FC = () => {
       );
     } catch (err) {
       console.error("Failed to update status:", err);
+    }
+  };
+
+  // Toggle item-level prep status
+  const toggleItemPrepared = async (orderId: string, itemId: string, currentPrepared: boolean) => {
+    const nextPrepared = !currentPrepared;
+    // Optimistic UI update
+    setOrders((prev) =>
+      prev.map((order) => {
+        if (order.id !== orderId) return order;
+        return {
+          ...order,
+          items: order.items.map((item) =>
+            item.id === itemId ? { ...item, isPrepared: nextPrepared } : item
+          ),
+        };
+      })
+    );
+
+    try {
+      await api.patch(`/api/orders/${orderId}/items/${itemId}/prepared`, {
+        isPrepared: nextPrepared,
+      });
+    } catch (err) {
+      console.error("Failed to toggle item prep:", err);
+      // Revert optimistic update on error
+      setOrders((prev) =>
+        prev.map((order) => {
+          if (order.id !== orderId) return order;
+          return {
+            ...order,
+            items: order.items.map((item) =>
+              item.id === itemId ? { ...item, isPrepared: currentPrepared } : item
+            ),
+          };
+        })
+      );
+    }
+  };
+
+  // Handle Void / Cancel Order
+  const handleConfirmCancel = async () => {
+    if (!cancellingOrder) return;
+    const finalReason =
+      cancelReasonPreset === "Custom"
+        ? customCancelReason.trim()
+        : cancelReasonPreset;
+
+    if (!finalReason) {
+      setCancelError("Please specify a cancellation reason.");
+      return;
+    }
+
+    setIsSubmittingCancel(true);
+    setCancelError(null);
+
+    try {
+      const res = await api.patch(`/api/orders/${cancellingOrder.id}/status`, {
+        status: "CANCELLED",
+        cancelReason: finalReason,
+      });
+      setOrders((prev) =>
+        prev.map((o) => (o.id === cancellingOrder.id ? res.data.order : o))
+      );
+      setCancellingOrder(null);
+      setCustomCancelReason("");
+      setCancelReasonPreset("Out of ingredients");
+    } catch (err: any) {
+      console.error("Failed to cancel order:", err);
+      setCancelError(err.response?.data?.error || "Failed to cancel order.");
+    } finally {
+      setIsSubmittingCancel(false);
     }
   };
 
@@ -452,14 +572,21 @@ export const OrdersKDSPage: React.FC = () => {
                       )}
                     </div>
 
-                    {/* Timer Badge */}
-                    <div className="text-right space-y-0.5">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border ${colorClass}`}
-                      >
-                        <Clock className="w-3 h-3" />
-                        <span>{diffMinutes}m</span>
-                      </span>
+                    {/* Timer & Wait Time Badges */}
+                    <div className="text-right space-y-1">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {order.estimatedWaitMinutes && (
+                          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                            ~{order.estimatedWaitMinutes}m est
+                          </span>
+                        )}
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border ${colorClass}`}
+                        >
+                          <Clock className="w-3 h-3" />
+                          <span>{diffMinutes}m</span>
+                        </span>
+                      </div>
                       <p
                         className={`text-[11px] font-bold ${
                           isDarkMode ? "text-amber-300" : "text-slate-700"
@@ -545,13 +672,23 @@ export const OrdersKDSPage: React.FC = () => {
                     ))}
                   </div>
 
-                  {/* Large Full-Width Action Button */}
-                  <button
-                    onClick={() => updateStatus(order.id, "PREPARING")}
-                    className="w-full py-2.5 rounded-xl font-bold text-xs bg-amber-500 hover:bg-amber-600 active:scale-[0.99] text-white shadow-sm flex items-center justify-center gap-2 transition cursor-pointer"
-                  >
-                    <ChefHat className="w-4 h-4" /> Accept & Start Cooking
-                  </button>
+                  {/* Action Buttons: Accept & Void */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      onClick={() => updateStatus(order.id, "PREPARING")}
+                      className="flex-1 py-2.5 rounded-xl font-bold text-xs bg-amber-500 hover:bg-amber-600 active:scale-[0.99] text-white shadow-sm flex items-center justify-center gap-2 transition cursor-pointer"
+                    >
+                      <ChefHat className="w-4 h-4" /> Accept & Start Cooking
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCancellingOrder(order)}
+                      className="p-2.5 rounded-xl border border-rose-200 dark:border-rose-900/40 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition cursor-pointer"
+                      title="Void / Cancel Order"
+                    >
+                      <Ban className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -591,6 +728,10 @@ export const OrdersKDSPage: React.FC = () => {
           <div className="space-y-4">
             {preparingOrders.map((order) => {
               const { diffMinutes, colorClass } = getTimerDetails(order.createdAt);
+              const preppedCount = order.items.filter((i) => i.isPrepared).length;
+              const totalCount = order.items.length;
+              const allPrepped = totalCount > 0 && preppedCount === totalCount;
+
               return (
                 <div
                   key={order.id}
@@ -622,12 +763,14 @@ export const OrdersKDSPage: React.FC = () => {
                       )}
                     </div>
 
-                    <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border ${colorClass}`}
-                    >
-                      <Clock className="w-3 h-3" />
-                      <span>{diffMinutes}m cooking</span>
-                    </span>
+                    <div className="text-right space-y-1">
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border ${colorClass}`}
+                      >
+                        <Clock className="w-3 h-3" />
+                        <span>{diffMinutes}m cooking</span>
+                      </span>
+                    </div>
                   </div>
 
                   {/* Customer Notes */}
@@ -643,7 +786,35 @@ export const OrdersKDSPage: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Itemized Dish List */}
+                  {/* Item-Level Prep Progress Indicator */}
+                  <div className="space-y-1 pt-1">
+                    <div className="flex items-center justify-between text-[11px] font-bold">
+                      <span
+                        className={
+                          allPrepped
+                            ? "text-emerald-500 font-extrabold"
+                            : isDarkMode
+                            ? "text-slate-300"
+                            : "text-slate-600"
+                        }
+                      >
+                        Dish Prep: {preppedCount}/{totalCount} completed
+                      </span>
+                      {allPrepped && (
+                        <span className="text-[10px] text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full font-extrabold uppercase">
+                          All Dishes Ready!
+                        </span>
+                      )}
+                    </div>
+                    <div className="w-full bg-slate-200/70 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                      <div
+                        className="bg-emerald-500 h-full transition-all duration-300"
+                        style={{ width: `${totalCount ? (preppedCount / totalCount) * 100 : 0}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Itemized Dish List with Clickable Prep Checkboxes */}
                   <div
                     className={`space-y-2 pt-1 border-t ${
                       isDarkMode ? "border-slate-800" : "border-slate-100"
@@ -653,25 +824,61 @@ export const OrdersKDSPage: React.FC = () => {
                       <div key={item.id} className="text-xs flex items-start justify-between gap-2">
                         <div className="space-y-0.5 flex-1">
                           <div className="flex items-center gap-2">
+                            {/* Prep Checkbox Button */}
+                            <button
+                              type="button"
+                              onClick={() => toggleItemPrepared(order.id, item.id, !!item.isPrepared)}
+                              className={`p-1 rounded-md transition cursor-pointer shrink-0 ${
+                                item.isPrepared
+                                  ? "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/60"
+                                  : "text-slate-400 hover:text-slate-600 bg-slate-100 dark:bg-slate-800"
+                              }`}
+                              title={item.isPrepared ? "Mark Unprepared" : "Mark Dish Prepared"}
+                            >
+                              {item.isPrepared ? (
+                                <CheckSquare className="w-4 h-4" />
+                              ) : (
+                                <Square className="w-4 h-4" />
+                              )}
+                            </button>
+
                             <span
                               className={`w-5 h-5 rounded-md font-bold flex items-center justify-center text-xs shrink-0 ${
-                                isDarkMode
+                                item.isPrepared
+                                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                  : isDarkMode
                                   ? "bg-blue-950/70 text-sky-300"
                                   : "bg-blue-50 text-blue-800"
                               }`}
                             >
                               {item.quantity}
                             </span>
+
                             <span
                               className={`font-bold leading-tight ${
-                                isDarkMode ? "text-white" : "text-slate-900"
+                                item.isPrepared
+                                  ? "line-through text-slate-400 dark:text-slate-500"
+                                  : isDarkMode
+                                  ? "text-white"
+                                  : "text-slate-900"
                               }`}
                             >
                               {item.dish.name}
                             </span>
+
+                            {item.dish.isVegetarian && (
+                              <span title="Vegetarian">
+                                <Leaf className="w-3.5 h-3.5 text-emerald-500 inline shrink-0" />
+                              </span>
+                            )}
+                            {item.dish.isSpicy && (
+                              <span title="Spicy">
+                                <Flame className="w-3.5 h-3.5 text-red-500 inline shrink-0" />
+                              </span>
+                            )}
                           </div>
                           {item.specialInstructions && (
-                            <p className="text-[11px] text-sky-400 pl-7 italic">
+                            <p className="text-[11px] text-sky-400 pl-14 italic">
                               ↳ {item.specialInstructions}
                             </p>
                           )}
@@ -680,13 +887,27 @@ export const OrdersKDSPage: React.FC = () => {
                     ))}
                   </div>
 
-                  {/* Action Button: Mark Ready */}
-                  <button
-                    onClick={() => updateStatus(order.id, "READY")}
-                    className="w-full py-2.5 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white shadow-sm flex items-center justify-center gap-2 transition cursor-pointer"
-                  >
-                    <CheckCircle2 className="w-4 h-4" /> Mark Order Ready
-                  </button>
+                  {/* Action Buttons: Mark Ready & Void */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      onClick={() => updateStatus(order.id, "READY")}
+                      className={`flex-1 py-2.5 rounded-xl font-bold text-xs shadow-sm flex items-center justify-center gap-2 transition cursor-pointer ${
+                        allPrepped
+                          ? "bg-emerald-600 hover:bg-emerald-700 text-white animate-pulse"
+                          : "bg-blue-600 hover:bg-blue-700 text-white"
+                      }`}
+                    >
+                      <CheckCircle2 className="w-4 h-4" /> Mark Order Ready
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCancellingOrder(order)}
+                      className="p-2.5 rounded-xl border border-rose-200 dark:border-rose-900/40 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition cursor-pointer"
+                      title="Void / Cancel Order"
+                    >
+                      <Ban className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -751,6 +972,37 @@ export const OrdersKDSPage: React.FC = () => {
                   </span>
                 </div>
 
+                {/* Guest Star Rating & Feedback Callout Banner */}
+                {order.rating && (
+                  <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 space-y-1.5 animate-in fade-in">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                        Guest Rating
+                      </span>
+                      <div className="flex items-center gap-0.5 text-amber-500">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={`w-3.5 h-3.5 ${
+                              star <= (order.rating || 0)
+                                ? "fill-amber-400 text-amber-400"
+                                : "text-slate-300 dark:text-slate-700"
+                            }`}
+                          />
+                        ))}
+                        <span className="text-xs font-bold text-amber-800 dark:text-amber-200 ml-1">
+                          {order.rating}/5
+                        </span>
+                      </div>
+                    </div>
+                    {order.feedbackComment && (
+                      <p className="text-[11px] text-amber-950 dark:text-amber-200 italic font-medium leading-snug">
+                        "{order.feedbackComment}"
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <div
                   className={`space-y-1.5 text-xs border-t pt-1.5 ${
                     isDarkMode ? "text-slate-200 border-slate-800" : "text-slate-700 border-slate-100"
@@ -796,6 +1048,109 @@ export const OrdersKDSPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Cancel / Void Order Reason Modal */}
+      {cancellingOrder && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#111827] rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 animate-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-500 flex items-center justify-center">
+                  <Ban className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-base text-slate-900 dark:text-white">
+                    Void Order #{cancellingOrder.orderNumber}
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    {cancellingOrder.table?.label || `Table ${cancellingOrder.table?.tableNumber}`}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setCancellingOrder(null);
+                  setCancelError(null);
+                }}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {cancelError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+                {cancelError}
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                Select Reason for Cancellation:
+              </label>
+
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  "Out of ingredients",
+                  "Guest cancelled",
+                  "Duplicate order",
+                  "Kitchen overloaded",
+                  "Custom",
+                ].map((reason) => (
+                  <button
+                    key={reason}
+                    type="button"
+                    onClick={() => setCancelReasonPreset(reason)}
+                    className={`px-3 py-2 text-xs font-semibold rounded-xl border text-left transition cursor-pointer ${
+                      cancelReasonPreset === reason
+                        ? "bg-rose-500 text-white border-rose-500 shadow-xs"
+                        : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-rose-300"
+                    }`}
+                  >
+                    {reason}
+                  </button>
+                ))}
+              </div>
+
+              {cancelReasonPreset === "Custom" && (
+                <div className="space-y-1 pt-1">
+                  <label className="block text-[11px] font-medium text-slate-500">
+                    Custom Explanation:
+                  </label>
+                  <input
+                    type="text"
+                    value={customCancelReason}
+                    onChange={(e) => setCustomCancelReason(e.target.value)}
+                    placeholder="e.g. Kitchen equipment malfunction..."
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setCancellingOrder(null);
+                  setCancelError(null);
+                }}
+                className="px-4 py-2 text-xs font-bold rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                Nevermind
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCancel}
+                disabled={isSubmittingCancel}
+                className="px-4 py-2 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+              >
+                {isSubmittingCancel ? "Cancelling..." : "Confirm Void Order"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

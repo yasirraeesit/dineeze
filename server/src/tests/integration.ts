@@ -337,6 +337,110 @@ async function runIntegrationTests() {
       throw new Error(`TEST (g) FAILED: Dish reorder failed with status ${reorderRes.status}`);
     }
 
+    // -------------------------------------------------------------------------
+    // TEST (h): Sprint 1 (Wait Times, Item Prep Toggle, Feedback, Void Reason)
+    // -------------------------------------------------------------------------
+    console.log("▶ TEST (h): Verifying Sprint 1 wait time, item prep toggle, feedback, and void reason...");
+
+    // 1. Verify estimatedWaitMinutes in GET /api/menu/:qrToken
+    const menuWithWaitRes = await fetch(`${baseUrl}/api/menu/${tableA.qrToken}`);
+    const menuWithWaitJson: any = await menuWithWaitRes.json();
+    if (typeof menuWithWaitJson.estimatedWaitMinutes !== "number" || menuWithWaitJson.estimatedWaitMinutes < 10) {
+      throw new Error(`TEST (h) FAILED: expected estimatedWaitMinutes >= 10, got ${menuWithWaitJson.estimatedWaitMinutes}`);
+    }
+
+    // 2. Verify Item-Level Kitchen Prep Toggle
+    const orderItemId = orderJson.order.items[0].id;
+
+    // Cross-tenant prep toggle should return 403
+    const crossTenantPrepRes = await fetch(`${baseUrl}/api/orders/${createdOrderId}/items/${orderItemId}/prepared`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenB}`,
+      },
+      body: JSON.stringify({ isPrepared: true }),
+    });
+    if (crossTenantPrepRes.status !== 403) {
+      throw new Error(`TEST (h) FAILED: Expected 403 on cross-tenant item prep toggle, got ${crossTenantPrepRes.status}`);
+    }
+
+    // Authorized prep toggle should return 200 with updated isPrepared
+    const authPrepRes = await fetch(`${baseUrl}/api/orders/${createdOrderId}/items/${orderItemId}/prepared`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenA}`,
+      },
+      body: JSON.stringify({ isPrepared: true }),
+    });
+    const authPrepJson: any = await authPrepRes.json();
+    if (authPrepRes.status !== 200 || authPrepJson.item?.isPrepared !== true) {
+      throw new Error(`TEST (h) FAILED: Item prep toggle failed, status: ${authPrepRes.status}`);
+    }
+
+    // 3. Verify Post-Meal Feedback
+    // First advance order to READY status
+    await fetch(`${baseUrl}/api/orders/${createdOrderId}/status`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenA}`,
+      },
+      body: JSON.stringify({ status: "READY" }),
+    });
+
+    // Public guest feedback submission (rating 1-5 + comment)
+    const feedbackRes = await fetch(`${baseUrl}/api/orders/${createdOrderId}/feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rating: 5, feedbackComment: "Exceptional dining!" }),
+    });
+    const feedbackJson: any = await feedbackRes.json();
+    if (feedbackRes.status !== 200 || feedbackJson.order?.rating !== 5) {
+      throw new Error(`TEST (h) FAILED: Feedback submission failed, status: ${feedbackRes.status}`);
+    }
+
+    // Duplicate feedback should return 400
+    const dupFeedbackRes = await fetch(`${baseUrl}/api/orders/${createdOrderId}/feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rating: 4 }),
+    });
+    if (dupFeedbackRes.status !== 400) {
+      throw new Error(`TEST (h) FAILED: Expected 400 on duplicate feedback, got ${dupFeedbackRes.status}`);
+    }
+
+    // 4. Verify Cancel / Void Order with Reason
+    // Missing cancelReason on CANCELLED should return 400
+    const invalidCancelRes = await fetch(`${baseUrl}/api/orders/${createdOrderId}/status`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenA}`,
+      },
+      body: JSON.stringify({ status: "CANCELLED" }),
+    });
+    if (invalidCancelRes.status !== 400) {
+      throw new Error(`TEST (h) FAILED: Expected 400 when cancelReason is missing, got ${invalidCancelRes.status}`);
+    }
+
+    // Valid cancel with reason should return 200 and store cancelReason
+    const validCancelRes = await fetch(`${baseUrl}/api/orders/${createdOrderId}/status`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenA}`,
+      },
+      body: JSON.stringify({ status: "CANCELLED", cancelReason: "Guest changed mind" }),
+    });
+    const validCancelJson: any = await validCancelRes.json();
+    if (validCancelRes.status !== 200 || validCancelJson.order?.cancelReason !== "Guest changed mind") {
+      throw new Error(`TEST (h) FAILED: Cancel with reason failed, status: ${validCancelRes.status}`);
+    }
+
+    console.log(`  ✅ PASS: Wait time, prep toggle, feedback, and void reason validated.`);
+
     // Cleanup test records
     await prisma.dish.deleteMany({ where: { restaurantId: emptyRestB.id } });
     await prisma.category.deleteMany({ where: { restaurantId: emptyRestB.id } });
@@ -347,7 +451,7 @@ async function runIntegrationTests() {
     await prisma.category.delete({ where: { id: categoryA.id } });
     await prisma.table.delete({ where: { id: tableA.id } });
 
-    console.log("\n🎉 ALL 7 INTEGRATION TESTS PASSED CLEANLY!");
+    console.log("\n🎉 ALL 8 INTEGRATION TESTS PASSED CLEANLY!");
   } catch (error) {
     console.error("❌ Integration test error:", error);
     process.exitCode = 1;

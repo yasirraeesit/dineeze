@@ -21,16 +21,39 @@ const createOrderSchema = z.object({
   notes: z.string().max(500).optional(),
 });
 
-const updateOrderStatusSchema = z.object({
-  status: z.enum([
-    "PENDING",
-    "CONFIRMED",
-    "PREPARING",
-    "READY",
-    "SERVED",
-    "COMPLETED",
-    "CANCELLED",
-  ]),
+const updateOrderStatusSchema = z
+  .object({
+    status: z.enum([
+      "PENDING",
+      "CONFIRMED",
+      "PREPARING",
+      "READY",
+      "SERVED",
+      "COMPLETED",
+      "CANCELLED",
+    ]),
+    cancelReason: z.string().max(250).optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.status === "CANCELLED" && (!data.cancelReason || data.cancelReason.trim() === "")) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: "Cancellation reason is required when voiding or cancelling an order",
+      path: ["cancelReason"],
+    }
+  );
+
+const toggleItemPreparedSchema = z.object({
+  isPrepared: z.boolean(),
+});
+
+const orderFeedbackSchema = z.object({
+  rating: z.number().int().min(1, "Rating must be between 1 and 5").max(5, "Rating must be between 1 and 5"),
+  feedbackComment: z.string().max(500, "Feedback comment cannot exceed 500 characters").optional(),
 });
 
 // 1. PUBLIC: Customer places an order via QR token
@@ -93,13 +116,26 @@ router.post("/", validateBody(createOrderSchema), async (req: Request, res: Resp
       };
     });
 
-    // 4. Generate human-readable order number
+    // 4. Calculate dynamic estimated wait time based on dish prep times + active kitchen queue load
+    const maxDishPrepTime = Math.max(
+      ...dbDishes.map((d) => d.prepTimeMinutes || d.preparationTime || 10),
+      10
+    );
+    const activeQueueCount = await prisma.order.count({
+      where: {
+        restaurantId,
+        status: { in: ["PENDING", "PREPARING"] },
+      },
+    });
+    const estimatedWaitMinutes = maxDishPrepTime + activeQueueCount * 3;
+
+    // 5. Generate human-readable order number
     const todayOrdersCount = await prisma.order.count({
       where: { restaurantId },
     });
     const orderNumber = `#${String(todayOrdersCount + 101).padStart(4, "0")}`;
 
-    // 5. Create Order & OrderItems inside a single transaction with Neon timeout accommodation
+    // 6. Create Order & OrderItems inside a single transaction with Neon timeout accommodation
     const newOrder = await prisma.$transaction(
       async (tx) => {
         const order = await tx.order.create({
@@ -113,6 +149,7 @@ router.post("/", validateBody(createOrderSchema), async (req: Request, res: Resp
             customerPhone: customerPhone || null,
             notes: notes || null,
             paymentStatus: "UNPAID",
+            estimatedWaitMinutes,
             items: {
               create: orderItemsData,
             },
@@ -259,9 +296,14 @@ router.patch(
         return res.status(403).json({ error: "Forbidden: Multi-tenant access denied" });
       }
 
+      const updateData: any = { status: req.body.status };
+      if (req.body.status === "CANCELLED" && req.body.cancelReason) {
+        updateData.cancelReason = req.body.cancelReason.trim();
+      }
+
       const updated = await prisma.order.update({
         where: { id: req.params.id },
-        data: { status: req.body.status },
+        data: updateData,
         include: {
           table: true,
           restaurant: {
@@ -289,6 +331,148 @@ router.patch(
     } catch (error) {
       console.error("Update status error:", error);
       return res.status(500).json({ error: "Failed to update order status" });
+    }
+  }
+);
+
+// 5. OWNER/KDS: Item-Level Kitchen Prep Toggle
+router.patch(
+  "/:orderId/items/:itemId/prepared",
+  authenticateJWT,
+  validateBody(toggleItemPreparedSchema),
+  async (req: Request, res: Response) => {
+    try {
+      const { orderId, itemId } = req.params;
+      const { isPrepared } = req.body;
+
+      // Find order to check tenant authorization
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { restaurant: true },
+      });
+
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      if (order.restaurant.ownerId !== req.user!.id) {
+        return res.status(403).json({ error: "Forbidden: Multi-tenant access denied" });
+      }
+
+      // Check item belongs to order
+      const existingItem = await prisma.orderItem.findFirst({
+        where: { id: itemId, orderId },
+      });
+
+      if (!existingItem) {
+        return res.status(404).json({ error: "Order item not found on this order" });
+      }
+
+      const updatedItem = await prisma.orderItem.update({
+        where: { id: itemId },
+        data: { isPrepared },
+        include: { dish: true },
+      });
+
+      // Emit real-time item update to both restaurant and order rooms
+      const io = getIO();
+      if (io) {
+        const payload = {
+          orderId,
+          itemId,
+          isPrepared,
+          restaurantId: order.restaurantId,
+        };
+        io.to(`restaurant_${order.restaurantId}`).emit("order_item_updated", payload);
+        io.to(`order_${order.id}`).emit("order_item_updated", payload);
+      }
+
+      return res.json({ item: updatedItem, message: "Item prep status updated successfully" });
+    } catch (error) {
+      console.error("Update item prep error:", error);
+      return res.status(500).json({ error: "Failed to update item prep status" });
+    }
+  }
+);
+
+// 6. PUBLIC: Guest post-meal rating & feedback
+router.post(
+  "/:id/feedback",
+  validateBody(orderFeedbackSchema),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { rating, feedbackComment } = req.body;
+
+      const order = await prisma.order.findUnique({
+        where: { id },
+        include: {
+          table: true,
+          restaurant: true,
+        },
+      });
+
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      // Allowed only when order is READY, SERVED, or COMPLETED
+      if (!["READY", "SERVED", "COMPLETED"].includes(order.status)) {
+        return res.status(400).json({
+          error: "Feedback can only be submitted once your order is ready or served",
+        });
+      }
+
+      // Allowed only once
+      if (order.rating !== null) {
+        return res.status(400).json({
+          error: "Feedback has already been submitted for this order",
+        });
+      }
+
+      const updated = await prisma.order.update({
+        where: { id },
+        data: {
+          rating,
+          feedbackComment: feedbackComment ? feedbackComment.trim() : null,
+        },
+        include: {
+          table: true,
+          restaurant: {
+            select: {
+              id: true,
+              name: true,
+              currency: true,
+              accentColor: true,
+            },
+          },
+          items: {
+            include: { dish: true },
+          },
+        },
+      });
+
+      // Emit real-time feedback event to restaurant room (KDS) & order room
+      const io = getIO();
+      if (io) {
+        io.to(`restaurant_${order.restaurantId}`).emit("order_feedback_received", {
+          orderId: updated.id,
+          rating: updated.rating,
+          feedbackComment: updated.feedbackComment,
+          orderNumber: updated.orderNumber,
+          tableNumber: updated.table.tableNumber,
+        });
+        io.to(`restaurant_${order.restaurantId}`).emit("order_status_updated", updated);
+        io.to(`order_${order.id}`).emit("order_status_updated", updated);
+      }
+
+      return res.json({
+        order: updated,
+        message: "Thank you! Your feedback has been received.",
+      });
+    } catch (error) {
+      console.error("Submit feedback error:", error);
+      return res.status(500).json({ error: "Failed to submit feedback" });
     }
   }
 );

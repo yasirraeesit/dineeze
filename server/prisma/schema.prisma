@@ -112,6 +112,7 @@ model Dish {
   isSpicy         Boolean     @default(false)
   sortOrder       Int         @default(0)
   preparationTime Int?
+  prepTimeMinutes Int         @default(10)
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
   orderItems      OrderItem[]
@@ -132,10 +133,14 @@ model Order {
   customerName  String?
   customerPhone String?
   notes         String?
-  paymentStatus PaymentStatus @default(UNPAID)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  items         OrderItem[]
+  paymentStatus        PaymentStatus @default(UNPAID)
+  cancelReason         String?
+  estimatedWaitMinutes Int?
+  rating               Int?
+  feedbackComment      String?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  items                OrderItem[]
 
   @@index([restaurantId])
   @@index([tableId])
@@ -151,6 +156,7 @@ model OrderItem {
   unitPrice           Decimal  @db.Decimal(10, 2)
   subtotal            Decimal  @db.Decimal(10, 2)
   specialInstructions String?
+  isPrepared          Boolean  @default(false)
 
   @@index([orderId])
   @@index([dishId])
