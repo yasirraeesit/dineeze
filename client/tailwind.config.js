@@ -20,6 +20,7 @@ export default {
       fontFamily: {
         sans: ["Inter", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "sans-serif"],
         display: ["Plus Jakarta Sans", "Inter", "-apple-system", "sans-serif"],
+        serif: ["Instrument Serif", "Georgia", "serif"],
       },
     },
   },
