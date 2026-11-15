@@ -5,7 +5,6 @@ import {
   UtensilsCrossed,
   ChefHat,
   Smartphone,
-  Sparkles,
   ArrowRight,
   CheckCircle2,
   Clock,
@@ -17,12 +16,10 @@ import {
   Check,
   Printer,
   Store,
-  Coffee,
-  Beer,
-  Award,
   Layers,
-  AlertCircle,
   TrendingUp,
+  ShieldCheck,
+  ExternalLink,
 } from "lucide-react";
 
 // Web Audio synthesizer for the authentic Kitchen Display System chime
@@ -41,7 +38,7 @@ const playKitchenChime = () => {
     osc1.type = "sine";
     osc1.frequency.setValueAtTime(880, now);
     osc1.frequency.exponentialRampToValueAtTime(1760, now + 0.12);
-    gain1.gain.setValueAtTime(0.25, now);
+    gain1.gain.setValueAtTime(0.22, now);
     gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
     osc1.connect(gain1);
     gain1.connect(ctx.destination);
@@ -53,7 +50,7 @@ const playKitchenChime = () => {
     const gain2 = ctx.createGain();
     osc2.type = "triangle";
     osc2.frequency.setValueAtTime(1320, now + 0.05);
-    gain2.gain.setValueAtTime(0.18, now + 0.05);
+    gain2.gain.setValueAtTime(0.15, now + 0.05);
     gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
     osc2.connect(gain2);
     gain2.connect(ctx.destination);
@@ -69,7 +66,7 @@ type SupportedCurrency = "USD" | "PKR" | "INR" | "GBP";
 interface CurrencyMetadata {
   label: string;
   symbol: string;
-  rateAgainstUSD: number;
+  rate: number;
   format: (amountUSD: number) => string;
 }
 
@@ -77,25 +74,25 @@ const CURRENCIES: Record<SupportedCurrency, CurrencyMetadata> = {
   USD: {
     label: "USD ($)",
     symbol: "$",
-    rateAgainstUSD: 1,
+    rate: 1,
     format: (v) => `$${v.toFixed(2)}`,
   },
   PKR: {
     label: "PKR (Rs)",
     symbol: "Rs. ",
-    rateAgainstUSD: 278,
+    rate: 278,
     format: (v) => `Rs. ${Math.round(v * 278).toLocaleString()}`,
   },
   INR: {
     label: "INR (₹)",
     symbol: "₹",
-    rateAgainstUSD: 83,
+    rate: 83,
     format: (v) => `₹${Math.round(v * 83).toLocaleString()}`,
   },
   GBP: {
     label: "GBP (£)",
     symbol: "£",
-    rateAgainstUSD: 0.79,
+    rate: 0.79,
     format: (v) => `£${(v * 0.79).toFixed(2)}`,
   },
 };
@@ -121,22 +118,19 @@ export const LandingPage: React.FC = () => {
   // Mobile Navigation Drawer Toggle
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Sound Chime State
+  // Kitchen Chime State
   const [soundEnabled, setSoundEnabled] = useState(true);
 
-  // Global Currency Toggle in Hero & Calculator
+  // Hero interactive state
   const [heroCurrency, setHeroCurrency] = useState<SupportedCurrency>("USD");
   const [heroUpsellAdded, setHeroUpsellAdded] = useState(false);
 
-  // Section 3: Interactive 3-Surface Product Tabs
+  // Section 3: 3-Tab Product Walkthrough
   const [productTab, setProductTab] = useState<"menu" | "kds" | "floor">("menu");
 
   // Tab 1 (Guest Menu) State
   const [guestTheme, setGuestTheme] = useState<"espresso" | "emerald" | "crimson">("espresso");
-  const [guestCartItems, setGuestCartItems] = useState<{ id: string; name: string; price: number; qty: number }[]>([
-    { id: "burger", name: "Smoky Truffle Burger", price: 16.5, qty: 1 },
-  ]);
-  const [upsellAdded, setUpsellAdded] = useState(false);
+  const [guestUpsellAdded, setGuestUpsellAdded] = useState(false);
 
   // Tab 2 (KDS) State
   const [kdsTickets, setKdsTickets] = useState<KDSTicket[]>([
@@ -145,7 +139,7 @@ export const LandingPage: React.FC = () => {
       orderNumber: "1042",
       table: "Table 04",
       items: [
-        { id: "item-1", name: "Smoky Truffle Burger", qty: 1, note: "Medium rare", isPrepared: false },
+        { id: "item-1", name: "Smoky Truffle Burger", qty: 1, note: "Medium-rare", isPrepared: false },
         { id: "item-2", name: "Garlic Truffle Fries", qty: 1, isPrepared: false },
         { id: "item-3", name: "Craft Berry Lemonade", qty: 1, isPrepared: true },
       ],
@@ -164,8 +158,8 @@ export const LandingPage: React.FC = () => {
       elapsedSeconds: 312,
     },
   ]);
-  const [ticketFlashAlert, setTicketFlashAlert] = useState<string | null>(null);
-  const [kotModalOpen, setKotModalOpen] = useState(false);
+  const [ticketAlert, setTicketAlert] = useState<string | null>(null);
+  const [showThermalPreview, setShowThermalPreview] = useState(false);
 
   // Tab 3 (Floor) State
   const [selectedFloorTable, setSelectedFloorTable] = useState<number>(4);
@@ -181,7 +175,7 @@ export const LandingPage: React.FC = () => {
 
   // Section 5: ROI Calculator State
   const [roiTables, setRoiTables] = useState<number>(18);
-  const [roiCheckUSD, setRoiCheckUSD] = useState<number>(45);
+  const [roiCurrency, setRoiCurrency] = useState<SupportedCurrency>("USD");
 
   // Section 6: Pricing Billing Toggle
   const [billingPeriod, setBillingPeriod] = useState<"annual" | "monthly">("annual");
@@ -204,7 +198,7 @@ export const LandingPage: React.FC = () => {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // Toggle item preparation in KDS
+  // Toggle dish preparation checkbox in KDS
   const handleToggleItemPrepared = (ticketId: string, itemId: string) => {
     setKdsTickets((prev) =>
       prev.map((t) => {
@@ -224,29 +218,6 @@ export const LandingPage: React.FC = () => {
     );
   };
 
-  // Simulate new incoming ticket in KDS
-  const handleSimulateNewOrder = () => {
-    if (soundEnabled) {
-      playKitchenChime();
-    }
-    const orderNum = Math.floor(1043 + Math.random() * 40).toString();
-    const newTicket: KDSTicket = {
-      id: `ticket-${Date.now()}`,
-      orderNumber: orderNum,
-      table: "Table 06",
-      items: [
-        { id: `sim-${Date.now()}-1`, name: "Smoky Truffle Burger", qty: 2, note: "No onions on 1", isPrepared: false },
-        { id: `sim-${Date.now()}-2`, name: "Hand-Cut Garlic Fries", qty: 2, isPrepared: false },
-      ],
-      status: "PENDING",
-      elapsedSeconds: 0,
-    };
-
-    setKdsTickets((prev) => [newTicket, ...prev.slice(0, 3)]);
-    setTicketFlashAlert(`New ticket #${orderNum} dropped into KDS!`);
-    setTimeout(() => setTicketFlashAlert(null), 3500);
-  };
-
   // Advance ticket status directly
   const handleAdvanceTicketStatus = (ticketId: string) => {
     setKdsTickets((prev) =>
@@ -261,27 +232,30 @@ export const LandingPage: React.FC = () => {
     );
   };
 
-  // Guest Cart total in Tab 1
-  const guestCartTotalUSD = useMemo(() => {
-    return guestCartItems.reduce((acc, curr) => acc + curr.price * curr.qty, 0);
-  }, [guestCartItems]);
-
-  const guestCartItemCount = useMemo(() => {
-    return guestCartItems.reduce((acc, curr) => acc + curr.qty, 0);
-  }, [guestCartItems]);
-
-  // Handle adding smart upsell in Tab 1
-  const handleAddSmartUpsell = () => {
-    if (!upsellAdded) {
-      setGuestCartItems((prev) => [
-        ...prev,
-        { id: "lemonade", name: "Craft Berry Lemonade", price: 4.5, qty: 1 },
-      ]);
-      setUpsellAdded(true);
+  // Simulate new order into KDS
+  const handleSimulateNewOrder = () => {
+    if (soundEnabled) {
+      playKitchenChime();
     }
+    const orderNum = Math.floor(1043 + Math.random() * 40).toString();
+    const newTicket: KDSTicket = {
+      id: `ticket-${Date.now()}`,
+      orderNumber: orderNum,
+      table: "Table 06",
+      items: [
+        { id: `sim-${Date.now()}-1`, name: "Smoky Truffle Burger", qty: 2, note: "No onion on 1", isPrepared: false },
+        { id: `sim-${Date.now()}-2`, name: "Garlic Truffle Fries", qty: 2, isPrepared: false },
+      ],
+      status: "PENDING",
+      elapsedSeconds: 0,
+    };
+
+    setKdsTickets((prev) => [newTicket, ...prev.slice(0, 3)]);
+    setTicketAlert(`Order #${orderNum} landed on cook line (< 200ms)`);
+    setTimeout(() => setTicketAlert(null), 3500);
   };
 
-  // Smooth scroll
+  // Smooth scroll helper
   const scrollToSection = useCallback((id: string) => {
     setMobileMenuOpen(false);
     const element = document.getElementById(id);
@@ -290,671 +264,548 @@ export const LandingPage: React.FC = () => {
     }
   }, []);
 
-  // ROI calculations based on user input
-  const printSavingsAnnualUSD = roiTables * 32 * 12;
-  const aovLiftUSD = (roiTables * 22 * 30 * roiCheckUSD * 0.18);
-  const extraWeekendTurns = Math.round(roiTables * 1.8);
-  const totalAnnualImpactUSD = printSavingsAnnualUSD + aovLiftUSD * 12;
+  // ROI computations in selected currency
+  const roiMultiplier = CURRENCIES[roiCurrency].rate;
+  const annualPrintSavings = Math.round(roiTables * 32 * 12 * roiMultiplier);
+  const monthlyAovLift = Math.round(roiTables * 22 * 30 * 45 * 0.18 * roiMultiplier);
+
+  const activeTabTotal = useMemo(() => {
+    return floorTables.find((t) => t.id === selectedFloorTable)?.tabTotal || 88.5;
+  }, [selectedFloorTable, floorTables]);
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-[#0B0E14] font-sans selection:bg-amber-100 selection:text-amber-950">
+    <div className="min-h-screen bg-[#FAF8F5] text-[#111315] font-sans antialiased overflow-x-hidden selection:bg-amber-100 selection:text-amber-950">
       {/* ========================================================= */}
-      {/* 0. STICKY EDITORIAL NAVBAR                                */}
+      {/* 1. ROCK-SOLID RESPONSIVE NAVBAR                           */}
       {/* ========================================================= */}
-      <header className="sticky top-0 z-50 w-full backdrop-blur-md bg-[#FAF8F5]/85 border-b border-[#E8E2D9] transition-all duration-300">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-          {/* Brand Logo & Wordmark */}
-          <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-[#0B0E14] text-white flex items-center justify-center shadow-md shadow-black/10 group-hover:scale-105 transition-transform duration-200">
-              <UtensilsCrossed className="w-5 h-5 text-amber-400" />
+      <header className="sticky top-0 z-50 w-full h-16 bg-[#FAF8F5]/90 backdrop-blur-md border-b border-stone-200/80 transition-all">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-center justify-between">
+          {/* Left: Brand Logo & Wordmark */}
+          <Link to="/" className="flex items-center gap-2.5 shrink-0 group">
+            <div className="w-8 h-8 rounded-lg bg-[#111315] text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+              <UtensilsCrossed className="w-4 h-4 text-amber-400" />
             </div>
-            <div className="flex items-center gap-2.5">
-              <span className="font-display font-extrabold text-xl tracking-tight text-[#0B0E14]">
+            <div className="flex items-center gap-2">
+              <span className="font-display font-bold text-lg tracking-tight text-[#111315]">
                 Dineeze
               </span>
-              <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#EDE7DF] border border-[#DDD5CA] text-stone-700 text-[11px] font-semibold tracking-wide">
+              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-stone-100 border border-stone-200 text-stone-700 text-[10px] font-semibold">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                V2.5 OS
+                V2 OS
               </span>
             </div>
           </Link>
 
-          {/* Desktop Links */}
-          <nav className="hidden md:flex items-center gap-8 text-sm font-semibold text-stone-600">
+          {/* Center: Desktop Navigation Links (>= 1024px only) */}
+          <nav className="hidden lg:flex items-center gap-8 text-sm font-semibold text-stone-600">
             <button
-              onClick={() => scrollToSection("interactive-stage")}
-              className="hover:text-[#0B0E14] transition-colors cursor-pointer flex items-center gap-1.5"
+              onClick={() => scrollToSection("product-showcase")}
+              className="hover:text-[#111315] transition-colors cursor-pointer"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-600" /> 3-Surface Showcase
+              Product
             </button>
             <button
-              onClick={() => scrollToSection("why-switch")}
-              className="hover:text-[#0B0E14] transition-colors cursor-pointer"
+              onClick={() => {
+                setProductTab("kds");
+                scrollToSection("product-showcase");
+              }}
+              className="hover:text-[#111315] transition-colors cursor-pointer"
             >
-              The Friday Rush
+              Kitchen KDS
             </button>
             <button
-              onClick={() => scrollToSection("table-craft")}
-              className="hover:text-[#0B0E14] transition-colors cursor-pointer"
+              onClick={() => scrollToSection("friday-rush")}
+              className="hover:text-[#111315] transition-colors cursor-pointer"
             >
-              Physical Craft
+              Floor & POS
             </button>
             <button
-              onClick={() => scrollToSection("roi-calculator")}
-              className="hover:text-[#0B0E14] transition-colors cursor-pointer"
-            >
-              ROI Estimator
-            </button>
-            <button
-              onClick={() => scrollToSection("pricing")}
-              className="hover:text-[#0B0E14] transition-colors cursor-pointer"
+              onClick={() => scrollToSection("pricing-section")}
+              className="hover:text-[#111315] transition-colors cursor-pointer"
             >
               Pricing
             </button>
           </nav>
 
-          {/* Action CTAs */}
-          <div className="hidden md:flex items-center gap-3">
+          {/* Right Desktop: Sign In + Get Started (>= 1024px) */}
+          <div className="hidden lg:flex items-center gap-3 shrink-0">
             <Link
               to="/staff-login"
-              className="px-3 py-2 text-xs font-bold text-stone-600 hover:text-stone-900 hover:bg-[#F2ECE4] rounded-xl transition"
+              className="text-xs font-semibold text-stone-500 hover:text-stone-900 px-2.5 py-1.5 transition"
             >
               Staff Portal
             </Link>
             <Link
               to="/login"
-              className="px-4 py-2 text-sm font-semibold text-stone-700 hover:text-[#0B0E14] hover:bg-[#F2ECE4] rounded-xl transition"
+              className="text-sm font-semibold text-stone-700 hover:text-[#111315] px-3 py-1.5 rounded-lg transition"
             >
-              Owner Sign In
+              Sign In
             </Link>
             <Link
               to="/register"
-              className="px-4 py-2.5 rounded-xl text-sm font-bold bg-[#0B0E14] text-white hover:bg-stone-800 shadow-md transition-all duration-200 flex items-center gap-1.5 group"
+              className="px-4 py-2 rounded-lg text-xs font-bold bg-[#111315] text-white hover:bg-stone-800 shadow-xs transition-all whitespace-nowrap shrink-0 flex items-center gap-1"
             >
-              Launch Restaurant
-              <ArrowRight className="w-4 h-4 text-amber-400 group-hover:translate-x-0.5 transition-transform" />
+              Get Started
+              <ArrowRight className="w-3.5 h-3.5 text-amber-400" />
             </Link>
           </div>
 
-          {/* Mobile Hamburger Toggle */}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 rounded-xl text-stone-700 hover:bg-[#EDE8E0] transition"
-            aria-label="Toggle navigation menu"
-          >
-            {mobileMenuOpen ? <X className="w-6 h-6" /> : <MenuIcon className="w-6 h-6" />}
-          </button>
+          {/* Mobile & Tablet Controls (< 1024px): Crisp Get Started + Hamburger */}
+          <div className="lg:hidden flex items-center gap-2">
+            <Link
+              to="/register"
+              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#111315] text-white hover:bg-stone-800 transition whitespace-nowrap shrink-0"
+            >
+              Get Started
+            </Link>
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 rounded-lg text-stone-700 hover:bg-stone-100 transition shrink-0"
+              aria-label="Toggle navigation menu"
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <MenuIcon className="w-5 h-5" />}
+            </button>
+          </div>
         </div>
 
-        {/* Mobile Drawer */}
+        {/* Mobile Slide-Down Drawer */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-b border-[#E8E2D9] bg-[#FAF8F5]/95 backdrop-blur-xl px-4 py-6 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
-            <nav className="flex flex-col space-y-3">
+          <div className="lg:hidden border-b border-stone-200 bg-[#FAF8F5] px-4 py-5 space-y-4 animate-in fade-in slide-in-from-top-2 duration-150 shadow-lg">
+            <nav className="flex flex-col space-y-2.5 text-sm font-semibold text-stone-800">
               <button
-                onClick={() => scrollToSection("interactive-stage")}
-                className="text-left font-semibold text-stone-800 hover:text-amber-700 py-1 flex items-center gap-2"
+                onClick={() => scrollToSection("product-showcase")}
+                className="text-left py-1 hover:text-emerald-700"
               >
-                <Sparkles className="w-4 h-4 text-amber-600" /> 3-Surface Showcase (Menu, KDS, Floor)
+                Product Walkthrough
               </button>
               <button
-                onClick={() => scrollToSection("why-switch")}
-                className="text-left font-semibold text-stone-800 hover:text-amber-700 py-1"
+                onClick={() => {
+                  setProductTab("kds");
+                  scrollToSection("product-showcase");
+                }}
+                className="text-left py-1 hover:text-emerald-700"
               >
-                The Friday Rush Contrast
+                Kitchen KDS Display
               </button>
               <button
-                onClick={() => scrollToSection("table-craft")}
-                className="text-left font-semibold text-stone-800 hover:text-amber-700 py-1"
+                onClick={() => scrollToSection("friday-rush")}
+                className="text-left py-1 hover:text-emerald-700"
               >
-                Table-Tent QR & Thermal KOT
+                Floor Operations & POS
               </button>
               <button
-                onClick={() => scrollToSection("roi-calculator")}
-                className="text-left font-semibold text-stone-800 hover:text-amber-700 py-1"
+                onClick={() => scrollToSection("roi-section")}
+                className="text-left py-1 hover:text-emerald-700"
               >
-                Revenue Uplift Calculator
+                Savings & ROI Calculator
               </button>
               <button
-                onClick={() => scrollToSection("pricing")}
-                className="text-left font-semibold text-stone-800 hover:text-amber-700 py-1"
+                onClick={() => scrollToSection("pricing-section")}
+                className="text-left py-1 hover:text-emerald-700"
               >
-                Simple SaaS Tiers
+                Pricing Tiers
               </button>
             </nav>
-            <div className="pt-3 border-t border-[#E8E2D9] flex flex-col gap-2">
+
+            <div className="pt-3 border-t border-stone-200 flex flex-col gap-2">
               <Link
                 to="/staff-login"
-                className="w-full text-center py-2.5 rounded-xl font-semibold text-stone-700 bg-[#EDE7DF] border border-[#DDD5CA]"
+                className="w-full text-center py-2 text-xs font-bold text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-lg border border-stone-200 transition"
               >
                 Staff Portal Sign In
               </Link>
-              <Link
-                to="/login"
-                className="w-full text-center py-2.5 rounded-xl font-semibold text-stone-800 bg-white border border-[#DDD5CA]"
-              >
-                Owner Login
-              </Link>
-              <Link
-                to="/register"
-                className="w-full text-center py-3 rounded-xl font-bold bg-[#0B0E14] text-white shadow-sm flex items-center justify-center gap-2"
-              >
-                Launch Restaurant Free <ArrowRight className="w-4 h-4 text-amber-400" />
-              </Link>
+              <div className="flex gap-2">
+                <Link
+                  to="/login"
+                  className="flex-1 text-center py-2 text-xs font-bold text-stone-800 bg-white hover:bg-stone-50 rounded-lg border border-stone-200 transition"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  to="/register"
+                  className="flex-1 text-center py-2 text-xs font-bold bg-[#111315] text-white hover:bg-stone-800 rounded-lg shadow-xs transition"
+                >
+                  Get Started
+                </Link>
+              </div>
             </div>
           </div>
         )}
       </header>
 
       {/* ========================================================= */}
-      {/* 1. EDITORIAL SPLIT-STAGE HERO                             */}
+      {/* 2. GROUNDED EDITORIAL HERO                                */}
       {/* ========================================================= */}
-      <section className="relative overflow-hidden pt-12 pb-20 md:pt-20 md:pb-28 border-b border-[#E8E2D9] bg-[radial-gradient(circle_at_70%_25%,rgba(217,119,6,0.07),transparent_50%),radial-gradient(circle_at_20%_80%,rgba(16,185,129,0.06),transparent_50%)]">
-        {/* Subtle dot texture */}
-        <div className="absolute inset-0 bg-[radial-gradient(#0000000a_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none" />
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
-            {/* Left Column: Editorial Display Typography & CTAs */}
-            <div className="lg:col-span-5 space-y-7 text-left">
-              {/* Status Pill */}
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 border border-[#E0D8CE] text-stone-800 text-xs font-semibold shadow-xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="font-extrabold tracking-wide text-[#0B0E14]">Dineeze V2</span>
-                <span className="text-stone-300">•</span>
-                <span className="text-stone-600">Live Multi-Branch Restaurant OS</span>
+      <section className="py-14 lg:py-22 border-b border-stone-200/80">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
+            {/* Left Column (lg:col-span-6): Copy & CTAs */}
+            <div className="lg:col-span-6 space-y-6 text-left">
+              {/* Eyebrow Tag */}
+              <div>
+                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-stone-100 border border-stone-200 text-stone-700 text-xs font-bold tracking-wide uppercase">
+                  RESTAURANT OPERATING SYSTEM
+                </span>
               </div>
 
-              {/* Bold Headline with Instrument Serif Italic Accent */}
-              <h1 className="text-4xl sm:text-5xl lg:text-[3.5rem] font-bold font-display text-[#0B0E14] tracking-tight leading-[1.08]">
-                Every dining room, in{" "}
+              {/* Bold Display Headline */}
+              <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-bold font-display text-[#111315] tracking-tight leading-[1.1]">
+                Table ordering, without the{" "}
                 <span className="font-serif italic font-normal text-amber-700">
-                  flawless rhythm.
+                  bottleneck.
                 </span>
               </h1>
 
-              {/* Crisp 2-line Value Proposition */}
-              <p className="text-base sm:text-lg text-stone-600 leading-relaxed font-normal max-w-lg">
-                Guests scan a tabletop QR token to order and track food live on their own phones,
-                while your kitchen displays and floor runners operate with zero noise or confusion.
+              {/* Concise 2-Sentence Value Prop */}
+              <p className="text-base sm:text-lg text-stone-600 leading-relaxed max-w-xl">
+                Dineeze lets guests scan, order, and pay directly from their mobile browser. Tickets
+                beam instantly to kitchen displays and floor staff with zero app downloads and zero
+                proprietary hardware.
               </p>
 
               {/* Dual Action CTAs */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 pt-1">
                 <Link
                   to="/register"
-                  className="px-7 py-4 rounded-xl font-bold bg-[#0B0E14] hover:bg-stone-800 text-white shadow-xl shadow-black/15 transition-all duration-200 flex items-center justify-center gap-2 group text-sm sm:text-base cursor-pointer"
+                  className="px-6 py-3.5 rounded-xl font-bold bg-[#111315] hover:bg-stone-800 text-white shadow-xs transition-all flex items-center justify-center gap-2 text-sm sm:text-base group"
                 >
-                  Launch Your Restaurant
-                  <ArrowRight className="w-4 h-4 text-amber-400 group-hover:translate-x-1 transition-transform" />
+                  Start Free
+                  <ArrowRight className="w-4 h-4 text-amber-400 group-hover:translate-x-0.5 transition-transform" />
                 </Link>
                 <Link
                   to="/m/table-1-spice-kitchen"
-                  className="px-6 py-4 rounded-xl font-semibold bg-white border border-[#D9D1C7] hover:border-stone-400 text-stone-800 hover:bg-[#FAF8F5] shadow-xs transition flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer"
+                  className="px-5 py-3.5 rounded-xl font-semibold bg-white border border-stone-300 text-stone-800 hover:bg-stone-50 shadow-xs transition flex items-center justify-center gap-2 text-sm sm:text-base"
                 >
                   <Smartphone className="w-4 h-4 text-emerald-600" />
-                  Explore Live Guest Menu
+                  Try Live Guest Menu
                 </Link>
               </div>
 
-              {/* Trust Bar with Currency Selector */}
-              <div className="pt-4 border-t border-[#E8E2D9] space-y-2.5">
-                <div className="flex items-center justify-between text-xs text-stone-500 font-medium">
-                  <span>Zero app downloads • Works on any phone or tablet</span>
-                  <div className="flex items-center gap-1 font-bold text-stone-700 bg-white px-2 py-0.5 rounded-lg border border-[#E0D8CE]">
-                    {(["USD", "PKR", "INR", "GBP"] as SupportedCurrency[]).map((c) => (
-                      <button
-                        key={c}
-                        onClick={() => setHeroCurrency(c)}
-                        className={`px-1.5 py-0.5 rounded text-[11px] transition ${
-                          heroCurrency === c ? "bg-[#0B0E14] text-white" : "hover:text-black"
-                        }`}
-                      >
-                        {c}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Right Column: Layered Editorial Composition with 3 Overlapping Floating UI Cards */}
-            <div className="lg:col-span-7 relative">
-              <div className="relative mx-auto max-w-lg lg:max-w-none">
-                {/* Main Culinary Photo Frame */}
-                <div className="relative rounded-3xl overflow-hidden shadow-2xl border-4 border-white ring-1 ring-black/10">
-                  <img
-                    src="https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=1200&q=80"
-                    alt="Warm ambient dining room"
-                    className="w-full aspect-[4/3] object-cover scale-105 hover:scale-100 transition-transform duration-700"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/10" />
-                </div>
-
-                {/* 1. Top-Left Floating Glass Badge: QR Scanned */}
-                <div className="absolute -top-4 -left-4 sm:-top-6 sm:-left-6 backdrop-blur-md bg-white/95 border border-[#E0D8CE] rounded-2xl px-4 py-2.5 shadow-xl flex items-center gap-2.5 animate-in fade-in duration-300">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <div>
-                    <p className="font-display font-extrabold text-xs text-stone-900">
-                      QR Scanned • Table 04
-                    </p>
-                    <p className="text-[10px] text-stone-500">The Spice Kitchen (Flagship)</p>
-                  </div>
-                </div>
-
-                {/* 2. Bottom-Left Floating Miniature Order Card */}
-                <div className="absolute -bottom-6 -left-4 sm:-bottom-8 sm:-left-6 w-64 backdrop-blur-md bg-white/95 border border-[#E0D8CE] rounded-2xl p-3.5 shadow-2xl space-y-2">
-                  <div className="flex items-center gap-2.5">
-                    <img
-                      src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=300&q=80"
-                      alt="Burger"
-                      className="w-11 h-11 rounded-lg object-cover border border-stone-200 flex-shrink-0"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="font-display font-bold text-xs text-stone-900 truncate">
-                        Smoky Truffle Burger
-                      </p>
-                      <p className="text-xs font-extrabold text-emerald-600">
-                        {CURRENCIES[heroCurrency].format(16.5)}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Interactive Upsell Pill */}
-                  <button
-                    onClick={() => setHeroUpsellAdded(!heroUpsellAdded)}
-                    className={`w-full py-1.5 px-2 rounded-lg text-[10px] font-bold transition flex items-center justify-between cursor-pointer ${
-                      heroUpsellAdded
-                        ? "bg-emerald-50 text-emerald-800 border border-emerald-300"
-                        : "bg-[#F5F0E8] text-stone-700 hover:bg-[#EFE8DD] border border-[#DDD5C9]"
-                    }`}
-                  >
-                    <span>{heroUpsellAdded ? "✓ Added Truffle Fries" : "+ Add Garlic Truffle Fries"}</span>
-                    <span className="font-mono text-[9px]">
-                      +{CURRENCIES[heroCurrency].format(6.5)}
-                    </span>
-                  </button>
-                </div>
-
-                {/* 3. Bottom-Right Floating Dark-Mode KDS Snippet */}
-                <div className="absolute -bottom-6 -right-4 sm:-bottom-8 sm:-right-6 w-60 bg-[#0B0E14] text-white border border-white/10 rounded-2xl p-3.5 shadow-2xl space-y-2">
-                  <div className="flex items-center justify-between border-b border-white/10 pb-1.5 text-xs">
-                    <span className="font-mono font-bold text-amber-400">#108 • Table 04</span>
-                    <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-mono">
-                      <Clock className="w-2.5 h-2.5" /> 02:14
-                    </span>
-                  </div>
-                  <div className="space-y-1 text-[11px] text-stone-300">
-                    <div className="flex items-center gap-1.5">
-                      <Check className="w-3 h-3 text-emerald-400 flex-shrink-0" />
-                      <span className="truncate">1x Smoky Truffle Burger</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 rounded-xs border border-stone-600 flex-shrink-0" />
-                      <span className="text-stone-400 truncate">1x Hand-Cut Fries</span>
-                    </div>
-                  </div>
-                  <span className="inline-block text-[9px] font-bold text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded">
-                    PREPARING • HOT LINE
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ========================================================= */}
-      {/* 2. VENUE STRIP & "THE FRIDAY RUSH" CONTRAST               */}
-      {/* ========================================================= */}
-      <section id="why-switch" className="py-20 md:py-28 bg-[#F4F0EB] border-b border-[#E8E2D9]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
-          {/* Category Horizontal Marquee Strip */}
-          <div className="flex flex-wrap items-center justify-center gap-3 text-xs font-semibold text-stone-700">
-            <span className="px-4 py-2 rounded-full bg-white border border-[#E0D8CE] shadow-xs flex items-center gap-2">
-              <Coffee className="w-4 h-4 text-amber-700" /> Specialty Cafés & Roasteries
-            </span>
-            <span className="px-4 py-2 rounded-full bg-white border border-[#E0D8CE] shadow-xs flex items-center gap-2">
-              <UtensilsCrossed className="w-4 h-4 text-emerald-700" /> Smash Burger & Casual
-            </span>
-            <span className="px-4 py-2 rounded-full bg-white border border-[#E0D8CE] shadow-xs flex items-center gap-2">
-              <Award className="w-4 h-4 text-purple-700" /> Fine Dining & Bistros
-            </span>
-            <span className="px-4 py-2 rounded-full bg-white border border-[#E0D8CE] shadow-xs flex items-center gap-2">
-              <Store className="w-4 h-4 text-blue-700" /> Multi-Branch Cloud Kitchens
-            </span>
-            <span className="px-4 py-2 rounded-full bg-white border border-[#E0D8CE] shadow-xs flex items-center gap-2">
-              <Beer className="w-4 h-4 text-amber-600" /> Hotel Lounges & Rooftops
-            </span>
-          </div>
-
-          {/* Section Heading */}
-          <div className="text-center space-y-3 max-w-2xl mx-auto">
-            <span className="text-xs font-extrabold uppercase tracking-widest text-amber-800 bg-amber-100/80 px-3 py-1 rounded-full border border-amber-200">
-              THE FRIDAY NIGHT SHIFT
-            </span>
-            <h2 className="text-3xl sm:text-5xl font-bold font-display text-[#0B0E14] tracking-tight">
-              The 8:00 PM Test:{" "}
-              <span className="font-serif italic font-normal text-amber-700">
-                Friction vs. Flow.
-              </span>
-            </h2>
-            <p className="text-stone-600 text-sm sm:text-base">
-              When full dining rooms hit capacity, outdated paper routines crumble. Dineeze keeps every
-              station in effortless rhythm.
-            </p>
-          </div>
-
-          {/* Two-Column Contrast Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
-            {/* Left Card: The Old Paper & POS Bottleneck */}
-            <div className="bg-[#EFEAE2] rounded-3xl p-8 border border-[#DDD5CA] space-y-6 flex flex-col justify-between">
-              <div className="space-y-4">
-                <div className="flex items-center gap-2.5 text-stone-700">
-                  <div className="w-8 h-8 rounded-full bg-stone-300 flex items-center justify-center text-stone-700">
-                    <AlertCircle className="w-4 h-4" />
-                  </div>
-                  <h3 className="font-display font-extrabold text-xl text-stone-900">
-                    The Old Paper & POS Bottleneck
-                  </h3>
-                </div>
-                <p className="text-xs text-stone-500">
-                  How high-friction manual ordering costs restaurants 18+ minutes per table:
-                </p>
-
-                <div className="space-y-4 pt-2">
-                  <div className="p-3.5 rounded-2xl bg-white/70 border border-[#DDD5CA] space-y-1">
-                    <p className="font-bold text-xs text-stone-900">1. The 15-Minute Wait</p>
-                    <p className="text-xs text-stone-600">
-                      Guests look around frantically trying to flag down a server just to ask for drinks or the bill.
-                    </p>
-                  </div>
-                  <div className="p-3.5 rounded-2xl bg-white/70 border border-[#DDD5CA] space-y-1">
-                    <p className="font-bold text-xs text-stone-900">2. Costly Menu Reprints</p>
-                    <p className="text-xs text-stone-600">
-                      $400–$800 wasted every quarter re-laminating paper sheets whenever prices or specials shift.
-                    </p>
-                  </div>
-                  <div className="p-3.5 rounded-2xl bg-white/70 border border-[#DDD5CA] space-y-1">
-                    <p className="font-bold text-xs text-stone-900">3. Missed Modifier Notes</p>
-                    <p className="text-xs text-stone-600">
-                      Scribbled paper order notes cause allergy mistakes, wrong side dishes, and wasted food remakes.
-                    </p>
-                  </div>
-                  <div className="p-3.5 rounded-2xl bg-white/70 border border-[#DDD5CA] space-y-1">
-                    <p className="font-bold text-xs text-stone-900">4. Messy Split Bills</p>
-                    <p className="text-xs text-stone-600">
-                      Waiters spend 10 stressful minutes per table computing separate credit cards with handheld POS machines.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-[#DDD5CA] text-xs font-semibold text-stone-500">
-                Result: Stressed staff, longer table waits, lower dinner turnover.
-              </div>
-            </div>
-
-            {/* Right Card: The Dineeze Operating Rhythm */}
-            <div className="bg-[#0B0E14] text-white rounded-3xl p-8 border border-white/10 shadow-2xl space-y-6 flex flex-col justify-between relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-
-              <div className="space-y-4 relative z-10">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                    <Sparkles className="w-4 h-4" />
-                  </div>
-                  <h3 className="font-display font-extrabold text-xl text-white">
-                    The Dineeze Operating Rhythm
-                  </h3>
-                </div>
-                <p className="text-xs text-stone-400">
-                  Sub-second contactless coordination from tabletop scan to hot kitchen pass:
-                </p>
-
-                <div className="space-y-4 pt-2">
-                  <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <p className="font-bold text-xs text-emerald-400">1. 12-Second Scan-to-KDS</p>
-                      <span className="text-[10px] text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded font-mono">
-                        Instant
-                      </span>
-                    </div>
-                    <p className="text-xs text-stone-300">
-                      Guests scan immediately upon sitting down. Orders land on the cook line with an audible chime.
-                    </p>
-                  </div>
-                  <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 space-y-1">
-                    <p className="font-bold text-xs text-white">2. Live Sold-Out Inventory Sync</p>
-                    <p className="text-xs text-stone-300">
-                      86 any ingredient in 1 click; the item immediately greys out on all customer mobile screens.
-                    </p>
-                  </div>
-                  <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 space-y-1">
-                    <p className="font-bold text-xs text-white">3. Intelligent Cart Upsells (+18% AOV)</p>
-                    <p className="text-xs text-stone-300">
-                      Automated suggestions prompt high-margin beverage and truffle side additions right before checkout.
-                    </p>
-                  </div>
-                  <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 space-y-1">
-                    <p className="font-bold text-xs text-white">4. 1-Tap Split-Bill Settlement</p>
-                    <p className="text-xs text-stone-300">
-                      Diners divide checks equally in 2, 3, or 4 ways directly on their phone with zero waiter math.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-white/10 text-xs font-semibold text-emerald-400 relative z-10 flex items-center justify-between">
-                <span>Result: Faster turns, +18% average check size, calmer staff.</span>
-                <span className="text-[10px] font-mono bg-emerald-500/20 px-2 py-0.5 rounded">
-                  99.98% UPTIME
+              {/* Simple 3-Item Trust Row */}
+              <div className="pt-4 border-t border-stone-200 flex flex-wrap items-center gap-y-2 gap-x-6 text-xs font-medium text-stone-600">
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  No app download
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  Live KDS sync (&lt; 200ms)
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  PKR • USD • INR • GBP
                 </span>
               </div>
             </div>
+
+            {/* Right Column (lg:col-span-6): Grounded Single Framed Window Showcase */}
+            <div className="lg:col-span-6">
+              <div className="rounded-2xl border border-stone-200 bg-white shadow-xs overflow-hidden">
+                {/* Window Title Bar */}
+                <div className="h-10 bg-stone-50 border-b border-stone-200 px-4 flex items-center justify-between text-xs text-stone-600">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-stone-300" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-stone-300" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-stone-300" />
+                    <span className="ml-1 font-semibold text-stone-700">
+                      Table 04 • Spice Kitchen Flagship
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Live Session
+                  </div>
+                </div>
+
+                {/* Window Body: Image + Live Interactive Order Card Side-by-Side */}
+                <div className="p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-4 items-stretch">
+                  {/* Dining Room Photo */}
+                  <div className="rounded-xl overflow-hidden border border-stone-200 h-48 sm:h-auto min-h-[180px] relative">
+                    <img
+                      src="https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80"
+                      alt="Artisan Dining Room"
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute bottom-2 left-2 px-2.5 py-1 rounded-md bg-[#111315]/80 backdrop-blur-xs text-white text-[10px] font-semibold">
+                      Acrylic Stand Table 04
+                    </div>
+                  </div>
+
+                  {/* Interactive Order Card */}
+                  <div className="p-4 rounded-xl bg-stone-50 border border-stone-200 flex flex-col justify-between space-y-3">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-stone-900">Guest Order #1042</span>
+                        <div className="flex gap-1 font-mono text-[10px] bg-white border border-stone-200 rounded px-1.5 py-0.5">
+                          {(["USD", "PKR", "INR", "GBP"] as SupportedCurrency[]).map((c) => (
+                            <button
+                              key={c}
+                              onClick={() => setHeroCurrency(c)}
+                              className={`px-1 rounded transition ${
+                                heroCurrency === c ? "bg-[#111315] text-white font-bold" : "text-stone-500"
+                              }`}
+                            >
+                              {c}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="p-2 bg-white rounded-lg border border-stone-200 space-y-0.5 text-left">
+                        <div className="flex justify-between text-xs font-semibold text-stone-900">
+                          <span>1x Smoky Truffle Burger</span>
+                          <span>{CURRENCIES[heroCurrency].format(16.5)}</span>
+                        </div>
+                        <p className="text-[10px] text-stone-500">Black Angus • Brioche</p>
+                      </div>
+
+                      {/* Interactive Upsell Toggle */}
+                      <button
+                        onClick={() => setHeroUpsellAdded(!heroUpsellAdded)}
+                        className={`w-full p-2 rounded-lg text-left text-xs font-semibold border transition cursor-pointer flex items-center justify-between ${
+                          heroUpsellAdded
+                            ? "bg-emerald-50 border-emerald-300 text-emerald-800"
+                            : "bg-white border-dashed border-stone-300 text-stone-600 hover:border-stone-400"
+                        }`}
+                      >
+                        <span className="text-[11px]">
+                          {heroUpsellAdded ? "✓ Added Truffle Fries" : "+ Add Garlic Truffle Fries"}
+                        </span>
+                        <span className="text-[10px] font-mono text-emerald-600">
+                          +{CURRENCIES[heroCurrency].format(6.5)}
+                        </span>
+                      </button>
+                    </div>
+
+                    {/* Order Status Badge */}
+                    <div className="pt-2 border-t border-stone-200 flex items-center justify-between text-[11px]">
+                      <span className="text-stone-500 flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-stone-400" /> 02:14 prep
+                      </span>
+                      <span className="font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded text-[10px]">
+                        COOK LINE • PREPARING
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       {/* ========================================================= */}
-      {/* 3. INTERACTIVE 3-SURFACE PRODUCT STAGE (TABBED)           */}
+      {/* 3. ARCHITECTURAL METRICS BAND & VENUE STRIP               */}
       {/* ========================================================= */}
-      <section
-        id="interactive-stage"
-        className="py-24 md:py-32 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-b border-[#E8E2D9]"
-      >
-        <div className="text-center space-y-3 mb-12 max-w-3xl mx-auto">
-          <span className="text-xs font-extrabold uppercase tracking-widest text-emerald-800 bg-emerald-100/80 px-3 py-1 rounded-full border border-emerald-200">
-            INTERACTIVE SYSTEM STAGE
-          </span>
-          <h2 className="text-3xl sm:text-5xl font-bold font-display text-[#0B0E14] tracking-tight">
-            Three Surfaces,{" "}
-            <span className="font-serif italic font-normal text-amber-700">
-              one unified pulse.
-            </span>
-          </h2>
-          <p className="text-stone-600 text-sm sm:text-base">
-            Click through all three operational layers to test the actual interfaces used by guests,
-            chefs, and floor managers:
-          </p>
-        </div>
+      <section className="border-b border-stone-200 bg-white py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+          {/* 4 Tabular Metrics Separated by Subtle Hairlines */}
+          <div className="grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-stone-200 text-center">
+            <div className="py-2 px-4 space-y-0.5">
+              <p className="text-2xl sm:text-3xl font-extrabold font-display text-[#111315]">&lt; 200ms</p>
+              <p className="text-xs text-stone-500 font-medium">Kitchen WebSocket Sync</p>
+            </div>
+            <div className="py-2 px-4 space-y-0.5">
+              <p className="text-2xl sm:text-3xl font-extrabold font-display text-[#111315]">0</p>
+              <p className="text-xs text-stone-500 font-medium">App Installs Required</p>
+            </div>
+            <div className="py-2 px-4 space-y-0.5">
+              <p className="text-2xl sm:text-3xl font-extrabold font-display text-[#111315]">4</p>
+              <p className="text-xs text-stone-500 font-medium">Currencies Native</p>
+            </div>
+            <div className="py-2 px-4 space-y-0.5">
+              <p className="text-2xl sm:text-3xl font-extrabold font-display text-[#111315]">100%</p>
+              <p className="text-xs text-stone-500 font-medium">Web Browser-Based</p>
+            </div>
+          </div>
 
-        {/* Tab Navigation Pill Bar */}
-        <div className="flex justify-center mb-8">
-          <div className="inline-flex p-1.5 rounded-2xl bg-[#EDE7DF] border border-[#DDD5CA] shadow-inner gap-1">
-            <button
-              onClick={() => setProductTab("menu")}
-              className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer ${
-                productTab === "menu"
-                  ? "bg-[#0B0E14] text-white shadow-md"
-                  : "text-stone-700 hover:text-black"
-              }`}
-            >
-              <Smartphone className="w-4 h-4 text-emerald-400" />
-              1. Guest Mobile Menu
-            </button>
-            <button
-              onClick={() => setProductTab("kds")}
-              className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer ${
-                productTab === "kds"
-                  ? "bg-[#0B0E14] text-white shadow-md"
-                  : "text-stone-700 hover:text-black"
-              }`}
-            >
-              <ChefHat className="w-4 h-4 text-amber-400" />
-              2. Real-Time KDS
-            </button>
-            <button
-              onClick={() => setProductTab("floor")}
-              className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-2 cursor-pointer ${
-                productTab === "floor"
-                  ? "bg-[#0B0E14] text-white shadow-md"
-                  : "text-stone-700 hover:text-black"
-              }`}
-            >
-              <Layers className="w-4 h-4 text-blue-400" />
-              3. Live Floor & Analytics
-            </button>
+          {/* Clean Venue Strip */}
+          <div className="pt-4 border-t border-stone-100 flex flex-wrap items-center justify-center gap-2 text-xs font-semibold text-stone-600">
+            <span className="px-3 py-1 rounded-full bg-stone-100 border border-stone-200">
+              Specialty Cafés
+            </span>
+            <span className="px-3 py-1 rounded-full bg-stone-100 border border-stone-200">
+              Smash Burger Joints
+            </span>
+            <span className="px-3 py-1 rounded-full bg-stone-100 border border-stone-200">
+              Bistros & Fine Dining
+            </span>
+            <span className="px-3 py-1 rounded-full bg-stone-100 border border-stone-200">
+              Multi-Branch Kitchens
+            </span>
+            <span className="px-3 py-1 rounded-full bg-stone-100 border border-stone-200">
+              Hotel Lounges
+            </span>
           </div>
         </div>
+      </section>
 
-        {/* Tab Stage Content Container */}
-        <div className="bg-white rounded-3xl border border-[#DDD5CA] p-6 sm:p-10 shadow-xl min-h-[520px]">
-          {/* TAB 1: ZERO-LOGIN GUEST MENU */}
-          {productTab === "menu" && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center animate-in fade-in duration-300">
-              {/* Controls Column */}
-              <div className="lg:col-span-5 space-y-6 text-left">
-                <div className="space-y-2">
+      {/* ========================================================= */}
+      {/* 4. INTERACTIVE 3-TAB PRODUCT WALKTHROUGH                  */}
+      {/* ========================================================= */}
+      <section id="product-showcase" className="py-16 lg:py-24 border-b border-stone-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
+          {/* Section Header */}
+          <div className="text-center space-y-2 max-w-2xl mx-auto">
+            <span className="text-xs font-bold uppercase tracking-wider text-stone-500">
+              PRODUCT WALKTHROUGH
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-bold font-display text-[#111315] tracking-tight">
+              Three surfaces,{" "}
+              <span className="font-serif italic font-normal text-amber-700">
+                one operating rhythm.
+              </span>
+            </h2>
+            <p className="text-sm text-stone-600">
+              Test each surface exactly as your customers, kitchen staff, and floor managers see them:
+            </p>
+          </div>
+
+          {/* Segmented Tab Bar */}
+          <div className="flex justify-center">
+            <div className="inline-flex p-1 rounded-xl bg-stone-200/80 border border-stone-300 gap-1 text-xs sm:text-sm font-semibold">
+              <button
+                onClick={() => setProductTab("menu")}
+                className={`px-4 py-2 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+                  productTab === "menu"
+                    ? "bg-white text-stone-900 shadow-xs font-bold"
+                    : "text-stone-600 hover:text-stone-900"
+                }`}
+              >
+                <Smartphone className="w-4 h-4 text-emerald-600" />
+                1. Guest Menu
+              </button>
+              <button
+                onClick={() => setProductTab("kds")}
+                className={`px-4 py-2 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+                  productTab === "kds"
+                    ? "bg-white text-stone-900 shadow-xs font-bold"
+                    : "text-stone-600 hover:text-stone-900"
+                }`}
+              >
+                <ChefHat className="w-4 h-4 text-amber-600" />
+                2. Kitchen KDS
+              </button>
+              <button
+                onClick={() => setProductTab("floor")}
+                className={`px-4 py-2 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+                  productTab === "floor"
+                    ? "bg-white text-stone-900 shadow-xs font-bold"
+                    : "text-stone-600 hover:text-stone-900"
+                }`}
+              >
+                <Layers className="w-4 h-4 text-blue-600" />
+                3. Floor & Analytics
+              </button>
+            </div>
+          </div>
+
+          {/* Framed Walkthrough Container */}
+          <div className="max-w-5xl mx-auto rounded-2xl border border-stone-200 bg-white shadow-xs p-6 sm:p-8 min-h-[460px]">
+            {/* TAB 1: GUEST MENU */}
+            {productTab === "menu" && (
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center animate-in fade-in duration-200">
+                <div className="md:col-span-5 space-y-4 text-left">
                   <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-                    Surface 01 • Guest Mobile Experience
+                    Surface 01 • Customer Mobile Menu
                   </span>
                   <h3 className="text-2xl font-bold font-display text-stone-900">
-                    Zero-Friction Mobile Ordering
+                    Scan, Customize, Order
                   </h3>
                   <p className="text-xs text-stone-600 leading-relaxed">
-                    Zero app installs or user logins required. Diners scan with standard iOS/Android cameras
-                    and customize their order directly in their mobile browser.
+                    Zero app installation. Customers point their standard iPhone or Android camera at
+                    the tabletop acrylic stand. The full catalog loads instantly in 0.4 seconds.
                   </p>
-                </div>
 
-                {/* Theme Switcher */}
-                <div className="space-y-2">
-                  <p className="text-xs font-bold text-stone-700 uppercase tracking-wider">
-                    Test Brand Theming Engine:
-                  </p>
-                  <div className="flex gap-2">
-                    {[
-                      { id: "espresso", label: "Midnight Espresso", hex: "#0B0E14" },
-                      { id: "emerald", label: "Emerald Bistro", hex: "#059669" },
-                      { id: "crimson", label: "Crimson Grill", hex: "#BE123C" },
-                    ].map((theme) => (
-                      <button
-                        key={theme.id}
-                        onClick={() => setGuestTheme(theme.id as "espresso" | "emerald" | "crimson")}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer flex items-center gap-1.5 ${
-                          guestTheme === theme.id
-                            ? "bg-[#0B0E14] text-white border-black"
-                            : "bg-stone-50 border-stone-200 text-stone-700 hover:bg-stone-100"
-                        }`}
-                      >
-                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: theme.hex }} />
-                        {theme.label}
-                      </button>
-                    ))}
+                  {/* Brand Theme Selector */}
+                  <div className="space-y-1.5 pt-2">
+                    <p className="text-xs font-bold text-stone-700">Preview Brand Themes:</p>
+                    <div className="flex gap-2">
+                      {[
+                        { id: "espresso", label: "Espresso", bg: "#111315" },
+                        { id: "emerald", label: "Emerald", bg: "#059669" },
+                        { id: "crimson", label: "Crimson", bg: "#9F1239" },
+                      ].map((t) => (
+                        <button
+                          key={t.id}
+                          onClick={() => setGuestTheme(t.id as "espresso" | "emerald" | "crimson")}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer flex items-center gap-1.5 ${
+                            guestTheme === t.id
+                              ? "bg-stone-900 text-white border-black font-bold"
+                              : "bg-white border-stone-200 text-stone-700 hover:bg-stone-50"
+                          }`}
+                        >
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: t.bg }} />
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-2 text-xs text-stone-500 space-y-1">
+                    <p className="font-semibold text-stone-800">Key Customer Features:</p>
+                    <p>• Smart upsell modal (+18% higher checkout checks)</p>
+                    <p>• Live estimated wait time indicator based on queue</p>
+                    <p>• Multi-currency automatic symbol rendering</p>
                   </div>
                 </div>
 
-                {/* Smart Upsell Prompt */}
-                <div className="p-4 rounded-2xl bg-[#FAF8F5] border border-[#DDD5CA] space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-stone-900">Smart Cart Upsell Engine</span>
-                    <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-bold">
-                      +18% AOV
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-stone-500">
-                    Pairs best-sellers automatically right before the final checkout screen.
-                  </p>
-                  <button
-                    onClick={handleAddSmartUpsell}
-                    disabled={upsellAdded}
-                    className={`w-full py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                      upsellAdded
-                        ? "bg-emerald-100 text-emerald-800"
-                        : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs"
+                {/* Mobile Preview Frame */}
+                <div className="md:col-span-7 flex justify-center">
+                  <div
+                    className={`w-full max-w-[300px] rounded-2xl border-4 border-stone-900 shadow-md p-4 transition-colors duration-200 ${
+                      guestTheme === "espresso"
+                        ? "bg-[#111315] text-white"
+                        : guestTheme === "emerald"
+                        ? "bg-[#04281e] text-white"
+                        : "bg-[#270710] text-white"
                     }`}
                   >
-                    {upsellAdded ? "✓ Added Lemonade to Order" : "+ Add Craft Berry Lemonade ($4.50)"}
-                  </button>
-                </div>
-              </div>
-
-              {/* Mobile Phone Mockup */}
-              <div className="lg:col-span-7 flex justify-center">
-                <div
-                  className={`w-full max-w-[320px] rounded-[2.5rem] border-8 border-stone-900 shadow-2xl p-4 transition-colors duration-300 ${
-                    guestTheme === "espresso"
-                      ? "bg-[#0B0E14] text-white"
-                      : guestTheme === "emerald"
-                      ? "bg-[#032e22] text-white"
-                      : "bg-[#2b0811] text-white"
-                  }`}
-                >
-                  {/* Dynamic Island */}
-                  <div className="w-20 h-3.5 bg-stone-900 rounded-full mx-auto mb-3" />
-
-                  {/* Header */}
-                  <div className="flex justify-between items-center border-b border-white/10 pb-2 mb-3">
-                    <div>
-                      <h4 className="font-display font-bold text-xs text-white">The Spice Kitchen</h4>
-                      <p className="text-[10px] text-stone-400">Artisan Bistro • Table 04</p>
-                    </div>
-                    {/* Live Wait-Time Badge */}
-                    <span className="text-[9px] font-bold text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-800/60">
-                      ~14m wait
-                    </span>
-                  </div>
-
-                  {/* Dish List inside Phone */}
-                  <div className="space-y-2">
-                    <div className="p-2.5 rounded-xl bg-white/10 border border-white/10 flex items-center justify-between gap-2">
-                      <img
-                        src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=200&q=80"
-                        alt="Burger"
-                        className="w-12 h-12 rounded-lg object-cover"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-xs truncate">Smoky Truffle Burger</p>
-                        <p className="text-[10px] text-emerald-400 font-bold">$16.50</p>
+                    <div className="flex justify-between items-center border-b border-white/10 pb-2 mb-3">
+                      <div>
+                        <p className="font-display font-bold text-xs text-white">The Spice Kitchen</p>
+                        <p className="text-[10px] text-stone-400">Table 04 • Dine-In</p>
                       </div>
-                      <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded font-bold">1x</span>
+                      <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">
+                        ~14m wait
+                      </span>
                     </div>
 
-                    {upsellAdded && (
-                      <div className="p-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-between gap-2 animate-in fade-in">
-                        <img
-                          src="https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=200&q=80"
-                          alt="Lemonade"
-                          className="w-12 h-12 rounded-lg object-cover"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-bold text-xs truncate">Craft Berry Lemonade</p>
-                          <p className="text-[10px] text-emerald-400 font-bold">$4.50</p>
+                    <div className="space-y-2">
+                      <div className="p-2 bg-white/10 rounded-xl border border-white/10 flex items-center justify-between">
+                        <div>
+                          <p className="font-bold text-xs">Smoky Truffle Burger</p>
+                          <p className="text-[10px] text-emerald-400 font-bold">$16.50</p>
                         </div>
-                        <span className="text-[10px] bg-emerald-500/40 px-2 py-0.5 rounded font-bold">1x</span>
+                        <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded font-bold">1x</span>
                       </div>
-                    )}
-                  </div>
 
-                  {/* Bottom Cart Drawer */}
-                  <div className="mt-4 pt-3 border-t border-white/10 space-y-2">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-stone-400">Total ({guestCartItemCount} items)</span>
-                      <span className="font-bold text-white">${guestCartTotalUSD.toFixed(2)}</span>
+                      {/* Upsell Prompt inside Mockup */}
+                      <button
+                        onClick={() => setGuestUpsellAdded(!guestUpsellAdded)}
+                        className={`w-full p-2 rounded-xl text-left text-xs border transition cursor-pointer flex items-center justify-between ${
+                          guestUpsellAdded
+                            ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-300"
+                            : "bg-white/5 border-dashed border-white/20 text-stone-300 hover:bg-white/10"
+                        }`}
+                      >
+                        <span className="text-[11px]">
+                          {guestUpsellAdded ? "✓ Added Berry Lemonade" : "+ Add Berry Lemonade"}
+                        </span>
+                        <span className="text-[10px] font-mono text-emerald-400">+$4.50</span>
+                      </button>
                     </div>
+
+                    <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-xs">
+                      <span className="text-stone-400">Total Due</span>
+                      <span className="font-bold text-white">
+                        ${guestUpsellAdded ? "21.00" : "16.50"}
+                      </span>
+                    </div>
+
                     <button
                       onClick={() => setProductTab("kds")}
-                      className="w-full py-2.5 rounded-xl bg-emerald-500 text-stone-950 font-bold text-xs flex items-center justify-center gap-1.5 shadow-md cursor-pointer"
+                      className="w-full mt-2 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-stone-950 font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1"
                     >
                       <span>Send to Kitchen KDS</span>
                       <ArrowRight className="w-3.5 h-3.5" />
@@ -962,913 +813,745 @@ export const LandingPage: React.FC = () => {
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* TAB 2: REAL-TIME KITCHEN DISPLAY SYSTEM (KDS) */}
-          {productTab === "kds" && (
-            <div className="space-y-6 animate-in fade-in duration-300">
-              {/* KDS Header Controls */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 pb-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <h3 className="font-display font-extrabold text-xl text-stone-900">
-                      Kitchen Display System (KDS) • Station 01
+            {/* TAB 2: KITCHEN DISPLAY SYSTEM */}
+            {productTab === "kds" && (
+              <div className="space-y-5 animate-in fade-in duration-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-200 pb-3">
+                  <div>
+                    <h3 className="font-display font-bold text-lg text-stone-900">
+                      Kitchen Display System (KDS)
                     </h3>
+                    <p className="text-xs text-stone-500">
+                      Tap dish checkboxes to mark prep progress. Tap ticket footers to advance status.
+                    </p>
                   </div>
-                  <p className="text-xs text-stone-500 mt-0.5">
-                    Click any dish checkbox to toggle its individual prep status. Tap a ticket badge to advance.
-                  </p>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSoundEnabled(!soundEnabled)}
+                      className="p-2 rounded-lg border border-stone-200 bg-stone-50 text-stone-700 text-xs font-semibold hover:bg-stone-100 transition cursor-pointer flex items-center gap-1"
+                    >
+                      {soundEnabled ? <Volume2 className="w-3.5 h-3.5 text-emerald-600" /> : <VolumeX className="w-3.5 h-3.5 text-stone-400" />}
+                      <span className="text-[11px]">{soundEnabled ? "Audio ON" : "Muted"}</span>
+                    </button>
+
+                    <button
+                      onClick={() => setShowThermalPreview(!showThermalPreview)}
+                      className="px-3 py-1.5 rounded-lg border border-stone-200 bg-stone-50 text-stone-700 text-xs font-semibold hover:bg-stone-100 transition cursor-pointer flex items-center gap-1"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span className="text-[11px]">80mm KOT</span>
+                    </button>
+
+                    <button
+                      onClick={handleSimulateNewOrder}
+                      className="px-3.5 py-1.5 rounded-lg bg-[#111315] text-white text-xs font-bold hover:bg-stone-800 transition cursor-pointer flex items-center gap-1 shadow-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Simulate Order</span>
+                    </button>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setSoundEnabled(!soundEnabled)}
-                    className="p-2 rounded-xl border border-stone-200 bg-stone-50 hover:bg-stone-100 text-stone-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-                    title="Toggle Kitchen Chime"
-                  >
-                    {soundEnabled ? <Volume2 className="w-4 h-4 text-emerald-600" /> : <VolumeX className="w-4 h-4 text-stone-400" />}
-                    <span className="hidden sm:inline">{soundEnabled ? "Audio ON" : "Muted"}</span>
-                  </button>
-
-                  <button
-                    onClick={() => setKotModalOpen(!kotModalOpen)}
-                    className="px-3.5 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 border border-stone-300 text-stone-800 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Printer className="w-3.5 h-3.5" />
-                    <span>80mm KOT Preview</span>
-                  </button>
-
-                  <button
-                    onClick={handleSimulateNewOrder}
-                    className="px-4 py-2 rounded-xl bg-[#0B0E14] hover:bg-stone-800 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Simulate New Order</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Notification Banner when ticket arrives */}
-              {ticketFlashAlert && (
-                <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-2xl flex items-center justify-between text-xs text-emerald-900 font-bold animate-bounce">
-                  <span className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-emerald-600" />
-                    {ticketFlashAlert}
-                  </span>
-                  <span className="text-[10px] text-emerald-700 font-mono">0.18s Sync</span>
-                </div>
-              )}
-
-              {/* Thermal Ticket Modal / Inline Preview */}
-              {kotModalOpen && (
-                <div className="p-4 bg-stone-900 text-stone-200 rounded-2xl border border-stone-800 font-mono text-xs max-w-sm mx-auto space-y-2 shadow-2xl relative">
-                  <div className="text-center border-b border-dashed border-stone-700 pb-2">
-                    <p className="font-bold text-white text-sm">*** THE SPICE KITCHEN ***</p>
-                    <p className="text-[10px] text-stone-400">TABLE 04 • GUEST DINE-IN</p>
-                    <p className="text-[10px] text-emerald-400">KOT #1042 • 20:14:02</p>
+                {ticketAlert && (
+                  <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold flex items-center justify-between animate-in fade-in">
+                    <span>{ticketAlert}</span>
+                    <span className="text-[10px] text-emerald-700 font-mono">Real-Time Sync</span>
                   </div>
-                  <div className="space-y-1">
-                    <p className="font-bold text-white">1x SMOKY TRUFFLE BURGER</p>
-                    <p className="text-[10px] text-amber-300 italic"> * MEDIUM RARE / NO ONION</p>
-                    <p className="text-stone-300">1x GARLIC TRUFFLE FRIES</p>
-                    <p className="text-stone-300">1x CRAFT BERRY LEMONADE</p>
-                  </div>
-                  <div className="border-t border-dashed border-stone-700 pt-2 flex justify-between font-bold text-emerald-400">
-                    <span>TOTAL:</span>
-                    <span>$27.50</span>
-                  </div>
-                  <button
-                    onClick={() => setKotModalOpen(false)}
-                    className="w-full mt-2 py-1 bg-stone-800 text-stone-300 hover:text-white rounded text-[10px] text-center"
-                  >
-                    Close Preview
-                  </button>
-                </div>
-              )}
+                )}
 
-              {/* Tickets Column Board */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {kdsTickets.map((ticket) => (
-                  <div
-                    key={ticket.id}
-                    className="p-4 rounded-2xl bg-[#0B0E14] text-white border border-white/10 shadow-lg space-y-3 flex flex-col justify-between"
-                  >
-                    <div className="space-y-2.5">
-                      <div className="flex items-center justify-between border-b border-white/10 pb-2 text-xs">
-                        <span className="font-mono font-bold text-white text-sm">
-                          #{ticket.orderNumber} • <span className="text-amber-400">{ticket.table}</span>
-                        </span>
-                        <span className="font-mono text-stone-400 flex items-center gap-1 text-[11px]">
-                          <Clock className="w-3 h-3" />
-                          {formatTimer(ticket.elapsedSeconds)}
-                        </span>
+                {/* Optional Thermal KOT Preview */}
+                {showThermalPreview && (
+                  <div className="p-4 bg-stone-900 text-stone-200 rounded-xl border border-stone-800 font-mono text-xs max-w-xs mx-auto space-y-1.5">
+                    <div className="text-center border-b border-dashed border-stone-700 pb-1.5">
+                      <p className="font-bold text-white">*** KITCHEN ORDER TICKET ***</p>
+                      <p className="text-[10px] text-stone-400">TABLE 04 • GUEST DINE-IN</p>
+                      <p className="text-[10px] text-emerald-400">#1042 • 20:14:02</p>
+                    </div>
+                    <p className="text-[11px] text-white">1x SMOKY TRUFFLE BURGER</p>
+                    <p className="text-[10px] text-stone-400 italic"> * MEDIUM RARE</p>
+                    <p className="text-[11px] text-white">1x GARLIC TRUFFLE FRIES</p>
+                    <div className="border-t border-dashed border-stone-700 pt-1 flex justify-between font-bold text-emerald-400 text-xs">
+                      <span>TOTAL:</span>
+                      <span>$23.00</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* KDS Ticket Columns */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {kdsTickets.map((ticket) => (
+                    <div
+                      key={ticket.id}
+                      className="p-3.5 rounded-xl bg-[#111315] text-white border border-stone-800 space-y-3 flex flex-col justify-between"
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between border-b border-white/10 pb-1.5 text-xs">
+                          <span className="font-mono font-bold">
+                            #{ticket.orderNumber} • <span className="text-amber-400">{ticket.table}</span>
+                          </span>
+                          <span className="font-mono text-[10px] text-stone-400 flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {formatTimer(ticket.elapsedSeconds)}
+                          </span>
+                        </div>
+
+                        <div className="space-y-1">
+                          {ticket.items.map((it) => (
+                            <div
+                              key={it.id}
+                              onClick={() => handleToggleItemPrepared(ticket.id, it.id)}
+                              className={`p-1.5 rounded-lg border text-xs cursor-pointer transition flex items-center justify-between ${
+                                it.isPrepared
+                                  ? "bg-emerald-950/40 border-emerald-500/40 text-stone-400 line-through"
+                                  : "bg-stone-900 border-stone-800 text-stone-200"
+                              }`}
+                            >
+                              <span className="truncate">
+                                {it.qty}x {it.name}
+                              </span>
+                              <Check className={`w-3 h-3 ${it.isPrepared ? "text-emerald-400" : "text-stone-600"}`} />
+                            </div>
+                          ))}
+                        </div>
                       </div>
 
-                      {/* Items with click-to-prepare toggle */}
-                      <div className="space-y-1.5">
-                        {ticket.items.map((it) => (
-                          <div
-                            key={it.id}
-                            onClick={() => handleToggleItemPrepared(ticket.id, it.id)}
-                            className={`p-2 rounded-xl border text-xs cursor-pointer transition flex items-start gap-2 ${
-                              it.isPrepared
-                                ? "bg-emerald-950/40 border-emerald-500/40 text-stone-400 line-through"
-                                : "bg-stone-900 border-stone-800 text-stone-200 hover:border-stone-700"
+                      <button
+                        onClick={() => handleAdvanceTicketStatus(ticket.id)}
+                        className={`w-full py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1 ${
+                          ticket.status === "PENDING"
+                            ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                            : ticket.status === "PREPARING"
+                            ? "bg-blue-500/20 text-blue-300 border border-blue-500/40"
+                            : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                        }`}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                        {ticket.status} • ADVANCE
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: FLOOR & EXECUTIVE ANALYTICS */}
+            {productTab === "floor" && (
+              <div className="space-y-6 animate-in fade-in duration-200 text-left">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-200 pb-3">
+                  <div>
+                    <h3 className="font-display font-bold text-lg text-stone-900">
+                      Live Table Floor & Split-Check Hub
+                    </h3>
+                    <p className="text-xs text-stone-500">
+                      Click tables to inspect guest tabs and calculate equal bill splits:
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs font-semibold text-stone-600">
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-stone-400" /> Available
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-amber-500" /> Cooking
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" /> Ready
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-blue-500" /> Bill Due
+                    </span>
+                  </div>
+                </div>
+
+                {/* 6-Table Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+                  {floorTables.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setSelectedFloorTable(t.id)}
+                      className={`p-3 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
+                        selectedFloorTable === t.id
+                          ? "bg-stone-900 text-white border-black shadow-xs"
+                          : "bg-stone-50 border-stone-200 hover:bg-stone-100 text-stone-900"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs">{t.name}</span>
+                        <span
+                          className={`w-2 h-2 rounded-full ${
+                            t.status === "AVAILABLE"
+                              ? "bg-stone-400"
+                              : t.status === "COOKING"
+                              ? "bg-amber-500 animate-pulse"
+                              : t.status === "READY"
+                              ? "bg-emerald-500"
+                              : "bg-blue-500"
+                          }`}
+                        />
+                      </div>
+                      <div className="text-[10px] opacity-75 mt-2">
+                        <p>{t.guests > 0 ? `${t.guests} Diners` : "Empty"}</p>
+                        <p className="font-extrabold">{t.tabTotal > 0 ? `$${t.tabTotal.toFixed(2)}` : "$0.00"}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Split Bill Calculator & Executive Metrics */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-5 pt-2">
+                  <div className="md:col-span-5 p-4 rounded-xl bg-stone-50 border border-stone-200 space-y-3">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-bold text-stone-900">Table 0{selectedFloorTable} Split Bill</span>
+                      <span className="font-mono font-bold text-stone-900">${activeTabTotal.toFixed(2)}</span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[11px] text-stone-600">
+                        <span>Divide equally by:</span>
+                        <span className="font-bold text-emerald-700">{splitGuests} Diners</span>
+                      </div>
+                      <div className="flex gap-1.5">
+                        {[2, 3, 4, 5].map((count) => (
+                          <button
+                            key={count}
+                            onClick={() => setSplitGuests(count)}
+                            className={`flex-1 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                              splitGuests === count
+                                ? "bg-[#111315] text-white"
+                                : "bg-white border border-stone-200 text-stone-700 hover:bg-stone-100"
                             }`}
                           >
-                            <input
-                              type="checkbox"
-                              checked={it.isPrepared}
-                              onChange={() => {}}
-                              className="mt-0.5 accent-emerald-500 rounded"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold truncate">
-                                {it.qty}x {it.name}
-                              </p>
-                              {it.note && (
-                                <p className="text-[10px] text-amber-300 italic not-italic">
-                                  *{it.note}
-                                </p>
-                              )}
-                            </div>
-                          </div>
+                            {count}
+                          </button>
                         ))}
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => handleAdvanceTicketStatus(ticket.id)}
-                      className={`w-full py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 ${
-                        ticket.status === "PENDING"
-                          ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30"
-                          : ticket.status === "PREPARING"
-                          ? "bg-blue-500/20 text-blue-300 border border-blue-500/40 hover:bg-blue-500/30"
-                          : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30"
-                      }`}
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                      {ticket.status} • TAP TO ADVANCE
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* TAB 3: LIVE FLOOR & EXECUTIVE ANALYTICS */}
-          {productTab === "floor" && (
-            <div className="space-y-8 animate-in fade-in duration-300">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 pb-4">
-                <div>
-                  <h3 className="font-display font-extrabold text-xl text-stone-900">
-                    Live Dining Room Floor & Split-Check Hub
-                  </h3>
-                  <p className="text-xs text-stone-500 mt-0.5">
-                    Click any table to view floor status, split bills, and live occupancy trends:
-                  </p>
-                </div>
-                <div className="flex items-center gap-4 text-xs font-bold text-stone-600">
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-stone-400" /> Available
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-amber-500" /> Cooking
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" /> Ready
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-blue-500" /> Bill Due
-                  </span>
-                </div>
-              </div>
-
-              {/* 6-Table Floor Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                {floorTables.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setSelectedFloorTable(t.id)}
-                    className={`p-3.5 rounded-2xl border text-left transition cursor-pointer flex flex-col justify-between min-h-[110px] ${
-                      selectedFloorTable === t.id
-                        ? "bg-stone-900 text-white border-black ring-2 ring-emerald-500 shadow-md"
-                        : "bg-stone-50 border-stone-200 hover:bg-stone-100 text-stone-900"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-sm">{t.name}</span>
-                      <span
-                        className={`w-2 h-2 rounded-full ${
-                          t.status === "AVAILABLE"
-                            ? "bg-stone-400"
-                            : t.status === "COOKING"
-                            ? "bg-amber-500 animate-pulse"
-                            : t.status === "READY"
-                            ? "bg-emerald-500"
-                            : "bg-blue-500"
-                        }`}
-                      />
-                    </div>
-                    <div className="space-y-0.5 text-[11px] opacity-80">
-                      <p>{t.guests > 0 ? `${t.guests} Diners` : "Vacant"}</p>
-                      <p className="font-extrabold">{t.tabTotal > 0 ? `$${t.tabTotal.toFixed(2)}` : "$0.00"}</p>
-                    </div>
-                    <span className="text-[9px] font-bold uppercase tracking-wider opacity-60">
-                      {t.status.replace(/_/g, " ")}
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Split Bill Calculator & Executive Metrics Grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-2">
-                {/* Split Bill Widget */}
-                <div className="lg:col-span-5 p-5 rounded-2xl bg-[#FAF8F5] border border-[#DDD5CA] space-y-3 text-left">
-                  <div className="flex items-center justify-between">
-                    <span className="font-display font-bold text-sm text-stone-900">
-                      Table 0{selectedFloorTable} Split Settlement
-                    </span>
-                    <span className="text-xs font-extrabold text-stone-900">
-                      Tab: ${(floorTables.find((t) => t.id === selectedFloorTable)?.tabTotal || 88.5).toFixed(2)}
-                    </span>
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs text-stone-600">
-                      <span>Divide Check Equally:</span>
-                      <span className="font-bold text-emerald-700">{splitGuests} Diners</span>
-                    </div>
-                    <div className="flex gap-2">
-                      {[2, 3, 4, 5].map((num) => (
-                        <button
-                          key={num}
-                          onClick={() => setSplitGuests(num)}
-                          className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                            splitGuests === num
-                              ? "bg-[#0B0E14] text-white"
-                              : "bg-white border border-[#DDD5CA] text-stone-700 hover:bg-stone-100"
-                          }`}
-                        >
-                          {num} Guests
-                        </button>
-                      ))}
+                    <div className="pt-2 border-t border-stone-200 flex justify-between items-center">
+                      <span className="text-xs text-stone-500">Each Diner Owes:</span>
+                      <span className="font-display font-extrabold text-base text-emerald-700">
+                        ${(activeTabTotal / splitGuests).toFixed(2)}
+                      </span>
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-[#DDD5CA] flex items-center justify-between">
-                    <span className="text-xs text-stone-500">Each Guest Owes:</span>
-                    <span className="text-lg font-black font-display text-emerald-700">
-                      ${(
-                        (floorTables.find((t) => t.id === selectedFloorTable)?.tabTotal || 88.5) /
-                        splitGuests
-                      ).toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Executive Sparkline Metrics */}
-                <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-1 text-left">
-                    <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">
-                      Today&apos;s Revenue
-                    </span>
-                    <p className="text-2xl font-black font-display text-stone-900">$3,420</p>
-                    <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
-                      <TrendingUp className="w-3.5 h-3.5" /> +24% vs last Friday
-                    </span>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-1 text-left">
-                    <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">
-                      Avg Table Turn
-                    </span>
-                    <p className="text-2xl font-black font-display text-stone-900">34 mins</p>
-                    <span className="text-[11px] text-blue-600 font-semibold">
-                      ↓ 16 mins faster turns
-                    </span>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-1 text-left">
-                    <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">
-                      Guest Satisfaction
-                    </span>
-                    <p className="text-2xl font-black font-display text-amber-600">4.9 ★</p>
-                    <span className="text-[11px] text-stone-500">Based on 148 ratings</span>
+                  <div className="md:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200 space-y-1">
+                      <p className="text-[10px] font-bold text-stone-400 uppercase">Today&apos;s Revenue</p>
+                      <p className="text-xl font-bold font-display text-stone-900">$3,420</p>
+                      <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-0.5">
+                        <TrendingUp className="w-3 h-3" /> +24% vs last week
+                      </span>
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200 space-y-1">
+                      <p className="text-[10px] font-bold text-stone-400 uppercase">Avg Table Turn</p>
+                      <p className="text-xl font-bold font-display text-stone-900">34 mins</p>
+                      <span className="text-[10px] text-blue-600 font-semibold">↓ 16m faster</span>
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200 space-y-1">
+                      <p className="text-[10px] font-bold text-stone-400 uppercase">Satisfaction</p>
+                      <p className="text-xl font-bold font-display text-amber-600">4.9 ★</p>
+                      <span className="text-[10px] text-stone-500">148 verified ratings</span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </section>
 
       {/* ========================================================= */}
-      {/* 4. PHYSICAL-MEETS-DIGITAL CRAFT SECTION                   */}
+      {/* 5. HIGH-CONTRAST DARK SECTION ("BUILT FOR FRIDAY NIGHT")   */}
       {/* ========================================================= */}
-      <section id="table-craft" className="py-24 md:py-32 bg-[#F4F0EB] border-b border-[#E8E2D9]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
-          <div className="text-center space-y-3 max-w-2xl mx-auto">
-            <span className="text-xs font-extrabold uppercase tracking-widest text-amber-800 bg-amber-100/80 px-3 py-1 rounded-full border border-amber-200">
-              PHYSICAL CRAFT
+      <section id="friday-rush" className="py-16 lg:py-24 bg-[#111315] text-white border-y border-stone-900">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+          {/* Header */}
+          <div className="text-center space-y-2 max-w-2xl mx-auto">
+            <span className="text-xs font-bold uppercase tracking-wider text-amber-400">
+              FRIDAY NIGHT RESILIENCE
             </span>
-            <h2 className="text-3xl sm:text-5xl font-bold font-display text-[#0B0E14] tracking-tight">
+            <h2 className="text-3xl sm:text-4xl font-bold font-display text-white tracking-tight">
+              Engineered for the 8:00 PM Dinner Rush
+            </h2>
+            <p className="text-sm text-stone-400">
+              When dining rooms hit capacity and cooks are under pressure, Dineeze keeps every station
+              moving in synchronization.
+            </p>
+          </div>
+
+          {/* 3-Column Clean Architectural Layout with Sharp Dividers */}
+          <div className="rounded-2xl border border-white/10 divide-y lg:divide-y-0 lg:divide-x divide-white/10 grid grid-cols-1 lg:grid-cols-3 bg-white/[0.02]">
+            {/* Feature 1: 80mm Thermal KOT */}
+            <div className="p-6 sm:p-8 space-y-4 text-left">
+              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white">
+                <Printer className="w-5 h-5 text-amber-400" />
+              </div>
+              <h3 className="font-display font-bold text-lg text-white">
+                80mm Thermal KOT Printing
+              </h3>
+              <p className="text-xs text-stone-400 leading-relaxed">
+                Connects directly to your existing Epson or Star Micronics thermal slip printers via
+                standard ESC/POS protocols. Crisp kitchen order slips print with dish modifier notes.
+              </p>
+              <div className="p-3 bg-black/40 rounded-lg border border-white/10 font-mono text-[10px] text-stone-300 space-y-0.5">
+                <p className="text-emerald-400 font-bold">KOT #1042 • TABLE 04 • 20:14:02</p>
+                <p>1x SMOKY TRUFFLE BURGER (MED-RARE)</p>
+                <p>1x GARLIC TRUFFLE FRIES</p>
+              </div>
+            </div>
+
+            {/* Feature 2: Staff Roles & Audit Logs */}
+            <div className="p-6 sm:p-8 space-y-4 text-left">
+              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white">
+                <ShieldCheck className="w-5 h-5 text-emerald-400" />
+              </div>
+              <h3 className="font-display font-bold text-lg text-white">
+                Staff RBAC & Audit Trails
+              </h3>
+              <p className="text-xs text-stone-400 leading-relaxed">
+                Assign distinct 4-digit PINs for Managers, Kitchen Cooks, and Waiters. Every ticket
+                transition, payment settlement, or cancellation is logged with an immutable actor stamp.
+              </p>
+              <div className="p-3 bg-black/40 rounded-lg border border-white/10 font-mono text-[10px] text-stone-300 space-y-0.5">
+                <p className="text-stone-400">[20:14:18] Order #1041 Settled by Carlos (Waiter)</p>
+                <p className="text-stone-400">[20:14:32] Dish Prepared by Chef Marco (Kitchen)</p>
+              </div>
+            </div>
+
+            {/* Feature 3: Multi-Branch Menu Cloning */}
+            <div className="p-6 sm:p-8 space-y-4 text-left">
+              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white">
+                <Store className="w-5 h-5 text-blue-400" />
+              </div>
+              <h3 className="font-display font-bold text-lg text-white">
+                1-Click Multi-Branch Cloning
+              </h3>
+              <p className="text-xs text-stone-400 leading-relaxed">
+                Opening another location? Clone your full category hierarchy, pricing, and item modifiers
+                into a new branch in a single database transaction with complete tenant isolation.
+              </p>
+              <div className="p-3 bg-black/40 rounded-lg border border-white/10 text-xs text-stone-300 flex items-center justify-between">
+                <span>Downtown Flagship</span>
+                <span className="text-[10px] text-emerald-400 font-bold">➔ Terminal 2 Airport</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================= */}
+      {/* 6. PHYSICAL CRAFT: TABLE-TENT QR STAND                    */}
+      {/* ========================================================= */}
+      <section className="py-16 lg:py-24 border-b border-stone-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
+          <div className="text-center space-y-2 max-w-2xl mx-auto">
+            <span className="text-xs font-bold uppercase tracking-wider text-stone-500">
+              PHYSICAL MEETS DIGITAL
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-bold font-display text-[#111315] tracking-tight">
               Your brand,{" "}
               <span className="font-serif italic font-normal text-amber-700">
                 on every table.
               </span>
             </h2>
-            <p className="text-stone-600 text-sm sm:text-base">
-              Dineeze seamlessly bridges physical dining rooms and digital speed. No ugly iPad stands or
-              clunky hardware installations.
+            <p className="text-sm text-stone-600">
+              Generate print-ready vector PDF table tents configured for standard acrylic stands:
             </p>
           </div>
 
-          {/* Side-by-Side Physical Craft Cards: Table Tent QR Stand + 80mm Thermal KOT */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center max-w-5xl mx-auto">
-            {/* Left Card: Realistic Acrylic Table-Tent QR Stand */}
-            <div className="p-8 rounded-3xl bg-white border border-[#DDD5CA] shadow-xl space-y-6 flex flex-col items-center text-center">
+          <div className="max-w-md mx-auto p-6 rounded-2xl bg-white border border-stone-200 shadow-xs space-y-5 text-center">
+            {/* The Acrylic Stand Render */}
+            <div className="p-6 rounded-xl bg-[#FAF8F5] border border-stone-200 space-y-4">
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-6 h-6 rounded bg-[#111315] text-white flex items-center justify-center">
+                  <UtensilsCrossed className="w-3.5 h-3.5 text-amber-400" />
+                </div>
+                <span className="font-display font-bold text-sm text-[#111315]">The Spice Kitchen</span>
+              </div>
+
+              {/* Vector QR Code */}
+              <div className="p-3 bg-white rounded-xl shadow-xs border border-stone-200 inline-block">
+                <QRCodeSVG
+                  value="https://dineeze.vercel.app/m/table-1-spice-kitchen"
+                  size={120}
+                  level="M"
+                  includeMargin={false}
+                />
+              </div>
+
+              <div className="space-y-0.5">
+                <p className="font-display font-black text-xs text-stone-900 uppercase tracking-wider">
+                  TABLE 04 • SCAN TO ORDER
+                </p>
+                <p className="text-[10px] text-stone-500">Camera scan • No app required</p>
+              </div>
+
+              <p className="text-[10px] text-stone-400 pt-1 border-t border-stone-200">
+                Guest Wi-Fi: SpiceGuest • Pass: dine2026
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-stone-600 font-semibold px-2">
+              <span>Vector 300 DPI Export</span>
+              <Link
+                to="/m/table-1-spice-kitchen"
+                className="text-emerald-700 hover:text-emerald-800 flex items-center gap-1 font-bold"
+              >
+                Test QR Link <ExternalLink className="w-3 h-3" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================= */}
+      {/* 7. INTERACTIVE ROI ESTIMATOR & TRANSPARENT PRICING        */}
+      {/* ========================================================= */}
+      <section id="roi-section" className="py-16 lg:py-24 border-b border-stone-200 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+          {/* Section Header */}
+          <div className="text-center space-y-2 max-w-2xl mx-auto">
+            <span className="text-xs font-bold uppercase tracking-wider text-stone-500">
+              SAVINGS & REVENUE UPLIFT
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-bold font-display text-[#111315] tracking-tight">
+              Calculate your restaurant ROI
+            </h2>
+            <p className="text-sm text-stone-600">
+              See how much your dining room saves each month by eliminating paper reprints and waiter bottlenecks:
+            </p>
+          </div>
+
+          {/* Single-Card Interactive Calculator */}
+          <div className="max-w-3xl mx-auto p-6 sm:p-8 rounded-2xl border border-stone-200 bg-[#FAF8F5] space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="space-y-1">
-                <span className="text-[10px] font-extrabold tracking-widest text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full uppercase">
-                  Tabletop QR Stand (Acrylic Preview)
-                </span>
-                <h3 className="text-xl font-bold font-display text-stone-900">
-                  Custom Brand Table-Tent
-                </h3>
-              </div>
-
-              {/* Realistic Acrylic Stand Graphic */}
-              <div className="w-64 p-6 rounded-2xl bg-gradient-to-b from-[#FAF8F5] to-[#EDE7DF] border-2 border-white shadow-2xl space-y-4">
-                <div className="flex items-center justify-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-[#0B0E14] text-white flex items-center justify-center">
-                    <UtensilsCrossed className="w-4 h-4 text-amber-400" />
-                  </div>
-                  <span className="font-display font-extrabold text-sm text-stone-900">
-                    The Spice Kitchen
-                  </span>
-                </div>
-
-                {/* Real Vector QRCodeSVG */}
-                <div className="p-3 bg-white rounded-xl shadow-md border border-stone-200 inline-block">
-                  <QRCodeSVG
-                    value="https://dineeze.vercel.app/m/table-1-spice-kitchen"
-                    size={110}
-                    level="M"
-                    includeMargin={false}
-                  />
-                </div>
-
-                <div className="space-y-0.5">
-                  <p className="font-display font-black text-xs text-stone-900 uppercase tracking-wider">
-                    TABLE 04 • SCAN TO DINE
-                  </p>
-                  <p className="text-[10px] text-stone-500">Camera scan • No app required</p>
-                </div>
-
-                <div className="pt-2 border-t border-[#DDD5CA] text-[9px] text-stone-400">
-                  Guest Wi-Fi: SpiceGuest • Pass: dine2026
-                </div>
-              </div>
-
-              <div className="pt-2 flex items-center gap-4 text-xs font-bold text-stone-600">
-                <span>Vector 300 DPI Export</span>
-                <span>•</span>
-                <span>Standard Acrylic Sizes</span>
-              </div>
-            </div>
-
-            {/* Right Card: Serrated 80mm Thermal Kitchen Ticket */}
-            <div className="p-8 rounded-3xl bg-white border border-[#DDD5CA] shadow-xl space-y-6 flex flex-col items-center text-center">
-              <div className="space-y-1">
-                <span className="text-[10px] font-extrabold tracking-widest text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full uppercase">
-                  Cook Line Thermal Printout (KOT)
-                </span>
-                <h3 className="text-xl font-bold font-display text-stone-900">
-                  80mm ESC/POS Kitchen Slip
-                </h3>
-              </div>
-
-              {/* Serrated Thermal Receipt Graphic */}
-              <div className="w-64 p-5 bg-stone-900 text-stone-200 font-mono text-xs rounded-xl border border-stone-800 shadow-2xl space-y-2 text-left relative overflow-hidden">
-                <div className="text-center border-b border-dashed border-stone-700 pb-2 space-y-0.5">
-                  <p className="font-bold text-white text-xs">*** THE SPICE KITCHEN ***</p>
-                  <p className="text-[10px] text-stone-400">TABLE 04 • GUEST QR</p>
-                  <p className="text-[10px] text-emerald-400">ORDER #1042 • 20:14:02</p>
-                </div>
-
-                <div className="space-y-1 text-[11px]">
-                  <div className="flex justify-between font-bold text-white">
-                    <span>1x SMOKY TRUFFLE BURGER</span>
-                    <span>$16.50</span>
-                  </div>
-                  <p className="text-[10px] text-amber-300 italic"> * MEDIUM RARE, NO ONION</p>
-                  <div className="flex justify-between text-stone-300">
-                    <span>1x GARLIC TRUFFLE FRIES</span>
-                    <span>$6.50</span>
-                  </div>
-                  <div className="flex justify-between text-stone-300">
-                    <span>1x CRAFT BERRY LEMONADE</span>
-                    <span>$4.50</span>
-                  </div>
-                </div>
-
-                <div className="border-t border-dashed border-stone-700 pt-2 flex justify-between font-bold text-emerald-400 text-xs">
-                  <span>SUBTOTAL:</span>
-                  <span>$27.50</span>
-                </div>
-              </div>
-
-              <div className="pt-2 flex items-center gap-4 text-xs font-bold text-stone-600">
-                <span>Epson & Star Micronics Ready</span>
-                <span>•</span>
-                <span>Auto-Cut Supported</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ========================================================= */}
-      {/* 5. INTERACTIVE RESTAURANT ROI & UPLIFT CALCULATOR         */}
-      {/* ========================================================= */}
-      <section
-        id="roi-calculator"
-        className="py-24 md:py-32 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-b border-[#E8E2D9]"
-      >
-        <div className="text-center space-y-3 mb-16 max-w-3xl mx-auto">
-          <span className="text-xs font-extrabold uppercase tracking-widest text-emerald-800 bg-emerald-100/80 px-3 py-1 rounded-full border border-emerald-200">
-            BUSINESS IMPACT ESTIMATOR
-          </span>
-          <h2 className="text-3xl sm:text-5xl font-bold font-display text-[#0B0E14] tracking-tight">
-            Calculate your{" "}
-            <span className="font-serif italic font-normal text-amber-700">
-              revenue uplift.
-            </span>
-          </h2>
-          <p className="text-stone-600 text-sm sm:text-base">
-            See the exact financial benefit of eliminating paper reprints and boosting table turnover:
-          </p>
-        </div>
-
-        <div className="max-w-4xl mx-auto bg-white rounded-3xl border border-[#DDD5CA] p-8 sm:p-12 shadow-xl space-y-8">
-          {/* Sliders Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-            {/* Slider 1: Number of Tables */}
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <label htmlFor="roi-tables-slider" className="font-display font-bold text-sm text-stone-900">
-                  Number of Dining Tables:
+                <label htmlFor="roi-table-slider" className="font-display font-bold text-sm text-stone-900">
+                  Number of Dining Tables: {roiTables} Tables
                 </label>
-                <span className="font-black text-xl text-stone-900 bg-[#FAF8F5] px-3 py-1 rounded-xl border border-[#DDD5CA]">
-                  {roiTables} Tables
-                </span>
+                <p className="text-xs text-stone-500">Drag to adjust your restaurant capacity</p>
               </div>
-              <input
-                id="roi-tables-slider"
-                type="range"
-                min="5"
-                max="60"
-                value={roiTables}
-                onChange={(e) => setRoiTables(parseInt(e.target.value, 10))}
-                className="w-full h-2.5 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-              />
-              <div className="flex justify-between text-[11px] text-stone-400">
-                <span>5 Tables</span>
-                <span>30 Tables</span>
-                <span>60 Tables</span>
+
+              {/* Currency Selector */}
+              <div className="flex items-center gap-1 bg-white border border-stone-200 rounded-lg p-1 text-xs font-semibold self-start sm:self-auto">
+                {(["USD", "PKR", "INR", "GBP"] as SupportedCurrency[]).map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setRoiCurrency(c)}
+                    className={`px-2 py-1 rounded transition cursor-pointer ${
+                      roiCurrency === c ? "bg-[#111315] text-white font-bold" : "text-stone-600 hover:text-black"
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Slider 2: Average Check Size in USD */}
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <label htmlFor="roi-check-slider" className="font-display font-bold text-sm text-stone-900">
-                  Average Guest Check Size:
-                </label>
-                <span className="font-black text-xl text-emerald-700 bg-emerald-50 px-3 py-1 rounded-xl border border-emerald-200">
-                  ${roiCheckUSD} USD
-                </span>
+            <input
+              id="roi-table-slider"
+              type="range"
+              min="5"
+              max="60"
+              value={roiTables}
+              onChange={(e) => setRoiTables(parseInt(e.target.value, 10))}
+              className="w-full h-2 bg-stone-300 rounded-lg appearance-none cursor-pointer accent-[#111315]"
+            />
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-stone-200 text-left">
+              <div className="p-3.5 bg-white rounded-xl border border-stone-200 space-y-0.5">
+                <p className="text-[10px] font-bold text-stone-400 uppercase">Annual Paper Savings</p>
+                <p className="text-xl font-bold font-display text-stone-900">
+                  {CURRENCIES[roiCurrency].symbol}
+                  {annualPrintSavings.toLocaleString()}
+                </p>
+                <p className="text-[10px] text-stone-500">Zero laminated menu reprints</p>
               </div>
-              <input
-                id="roi-check-slider"
-                type="range"
-                min="15"
-                max="120"
-                step="5"
-                value={roiCheckUSD}
-                onChange={(e) => setRoiCheckUSD(parseInt(e.target.value, 10))}
-                className="w-full h-2.5 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-              />
-              <div className="flex justify-between text-[11px] text-stone-400">
-                <span>$15 (Café)</span>
-                <span>$60 (Casual Dining)</span>
-                <span>$120 (Fine Bistro)</span>
+
+              <div className="p-3.5 bg-white rounded-xl border border-stone-200 space-y-0.5">
+                <p className="text-[10px] font-bold text-stone-400 uppercase">+18% Upsell Lift</p>
+                <p className="text-xl font-bold font-display text-emerald-700">
+                  +{CURRENCIES[roiCurrency].symbol}
+                  {monthlyAovLift.toLocaleString()}/mo
+                </p>
+                <p className="text-[10px] text-stone-500">From automated cart suggestions</p>
+              </div>
+
+              <div className="p-3.5 bg-white rounded-xl border border-stone-200 space-y-0.5">
+                <p className="text-[10px] font-bold text-stone-400 uppercase">Faster Table Turns</p>
+                <p className="text-xl font-bold font-display text-amber-700">-18 mins</p>
+                <p className="text-[10px] text-stone-500">Average turn reduction per table</p>
               </div>
             </div>
           </div>
 
-          {/* Computed Metrics Results */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 border-t border-stone-100">
-            <div className="p-5 rounded-2xl bg-[#FAF8F5] border border-[#DDD5CA] space-y-1">
-              <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">
-                Annual Print & Reprint Savings
-              </span>
-              <p className="text-2xl font-black font-display text-stone-900">
-                ${printSavingsAnnualUSD.toLocaleString()}/yr
+          {/* Pricing Tiers Section */}
+          <div id="pricing-section" className="space-y-8 pt-8">
+            <div className="text-center space-y-2">
+              <h3 className="text-2xl sm:text-3xl font-bold font-display text-[#111315]">
+                Direct, transparent SaaS tiers
+              </h3>
+              <p className="text-xs text-stone-500">
+                No per-order percentage deductions. No hardware leasing contracts.
               </p>
-              <p className="text-[11px] text-stone-500">
-                Zero laminated paper, card inserts, or seasonal revision printing costs.
-              </p>
+
+              {/* Monthly / Annual Toggle */}
+              <div className="inline-flex items-center gap-2 p-1 rounded-xl bg-stone-100 border border-stone-200 text-xs font-semibold mt-2">
+                <button
+                  onClick={() => setBillingPeriod("monthly")}
+                  className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                    billingPeriod === "monthly" ? "bg-white text-stone-900 shadow-xs font-bold" : "text-stone-600"
+                  }`}
+                >
+                  Monthly
+                </button>
+                <button
+                  onClick={() => setBillingPeriod("annual")}
+                  className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                    billingPeriod === "annual" ? "bg-[#111315] text-white shadow-xs font-bold" : "text-stone-600"
+                  }`}
+                >
+                  Annual (Save 20%)
+                </button>
+              </div>
             </div>
 
-            <div className="p-5 rounded-2xl bg-[#FAF8F5] border border-[#DDD5CA] space-y-1">
-              <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">
-                Estimated +18% Upsell Lift
-              </span>
-              <p className="text-2xl font-black font-display text-emerald-700">
-                +${Math.round(aovLiftUSD).toLocaleString()}/mo
-              </p>
-              <p className="text-[11px] text-stone-500">
-                From automated side and beverage suggestions at mobile checkout.
-              </p>
-            </div>
+            {/* 2-Tier Pricing Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto text-left">
+              {/* Starter Plan */}
+              <div className="p-6 sm:p-8 rounded-2xl border border-stone-200 bg-white space-y-6 flex flex-col justify-between shadow-xs">
+                <div className="space-y-4">
+                  <div>
+                    <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">
+                      STARTER TIER
+                    </span>
+                    <p className="text-4xl font-extrabold font-display text-[#111315] mt-1">$0</p>
+                    <p className="text-xs text-stone-500">Free forever • Single café or pop-up</p>
+                  </div>
 
-            <div className="p-5 rounded-2xl bg-[#FAF8F5] border border-[#DDD5CA] space-y-1">
-              <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">
-                Extra Weekend Table Turns
-              </span>
-              <p className="text-2xl font-black font-display text-amber-700">
-                +{extraWeekendTurns} Turns/night
-              </p>
-              <p className="text-[11px] text-stone-500">
-                Diners order and settle tabs 16–18 minutes faster.
-              </p>
-            </div>
-          </div>
+                  <ul className="space-y-2 text-xs text-stone-700 pt-2 border-t border-stone-100">
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      Up to 10 Dining Tables
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      Unlimited Dishes & Categories
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      Kitchen KDS with Audio Bell Alert
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      Multi-Currency (PKR, USD, INR, GBP)
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      Printable Table-Tent Acrylic QR Stand PDFs
+                    </li>
+                  </ul>
+                </div>
 
-          {/* Total Estimated ROI Callout Banner */}
-          <div className="p-6 rounded-2xl bg-[#0B0E14] text-white flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold text-emerald-400">Total Estimated Annual Impact</p>
-              <p className="text-2xl sm:text-3xl font-black font-display text-white">
-                +${Math.round(totalAnnualImpactUSD).toLocaleString()}{" "}
-                <span className="text-xs text-stone-400 font-normal">/ year</span>
-              </p>
+                <Link
+                  to="/register"
+                  className="w-full py-3 rounded-xl font-bold bg-stone-100 hover:bg-stone-200 text-stone-900 text-center text-xs transition border border-stone-200"
+                >
+                  Start Free
+                </Link>
+              </div>
+
+              {/* Pro Multi-Branch Plan */}
+              <div className="p-6 sm:p-8 rounded-2xl border-2 border-[#111315] bg-white space-y-6 flex flex-col justify-between shadow-sm relative">
+                <span className="absolute -top-3 right-6 bg-[#111315] text-white text-[10px] font-bold px-3 py-0.5 rounded-full">
+                  MOST POPULAR
+                </span>
+
+                <div className="space-y-4">
+                  <div>
+                    <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">
+                      PRO MULTI-BRANCH
+                    </span>
+                    <p className="text-4xl font-extrabold font-display text-[#111315] mt-1">
+                      {billingPeriod === "annual" ? "$24" : "$29"}
+                      <span className="text-xs font-normal text-stone-500"> / month</span>
+                    </p>
+                    <p className="text-xs text-stone-500">For multi-room dining rooms and restaurant chains</p>
+                  </div>
+
+                  <ul className="space-y-2 text-xs text-stone-700 pt-2 border-t border-stone-100">
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <strong>Unlimited Tables & Branches</strong>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      Staff Role-Based PIN Access (Manager, Cook, Waiter)
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      Live Table Floor Board & Split-Bill Tracking
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      1-Click Menu Catalog Cloning Across Branches
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      Order Audit Logs & Peak Hour Analytics
+                    </li>
+                  </ul>
+                </div>
+
+                <Link
+                  to="/register"
+                  className="w-full py-3 rounded-xl font-bold bg-[#111315] hover:bg-stone-800 text-white text-center text-xs transition shadow-xs"
+                >
+                  Start 14-Day Free Pro Trial
+                </Link>
+              </div>
             </div>
-            <Link
-              to="/register"
-              className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-stone-950 font-bold text-xs shadow-md transition flex items-center gap-1.5 flex-shrink-0"
-            >
-              Start Free Setup <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
           </div>
         </div>
       </section>
 
       {/* ========================================================= */}
-      {/* 6. TRANSPARENT SAAS TIERS (STARTER VS. GROWTH PRO)        */}
+      {/* 8. CLOSING CTA BANNER & STRUCTURED FOOTER                 */}
       {/* ========================================================= */}
-      <section
-        id="pricing"
-        className="py-24 md:py-32 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-b border-[#E8E2D9]"
-      >
-        <div className="text-center space-y-4 mb-16 max-w-3xl mx-auto">
-          <span className="text-xs font-extrabold uppercase tracking-widest text-emerald-800 bg-emerald-100/80 px-3 py-1 rounded-full border border-emerald-200">
-            SIMPLE, DIRECT PRICING
-          </span>
-          <h2 className="text-3xl sm:text-5xl font-bold font-display text-[#0B0E14] tracking-tight">
-            Transparent hospitality{" "}
-            <span className="font-serif italic font-normal text-amber-700">
-              software tiers.
-            </span>
-          </h2>
-          <p className="text-stone-600 text-sm sm:text-base">
-            No percentage cuts on food orders. No proprietary tablet hardware leases.
-          </p>
-
-          {/* Monthly / Annual Billing Toggle */}
-          <div className="inline-flex items-center gap-3 p-1.5 rounded-2xl bg-[#EDE7DF] border border-[#DDD5CA] text-xs font-bold mt-2">
-            <button
-              onClick={() => setBillingPeriod("monthly")}
-              className={`px-4 py-2 rounded-xl transition cursor-pointer ${
-                billingPeriod === "monthly"
-                  ? "bg-white text-stone-900 shadow-sm"
-                  : "text-stone-600 hover:text-stone-900"
-              }`}
-            >
-              Monthly Billing
-            </button>
-            <button
-              onClick={() => setBillingPeriod("annual")}
-              className={`px-4 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer ${
-                billingPeriod === "annual"
-                  ? "bg-[#0B0E14] text-white shadow-sm"
-                  : "text-stone-600 hover:text-stone-900"
-              }`}
-            >
-              Annual Billing
-              <span className="text-[10px] font-extrabold bg-emerald-500 text-white px-2 py-0.5 rounded-full">
-                SAVE 20%
-              </span>
-            </button>
-          </div>
-        </div>
-
-        {/* 2-Tier Pricing Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto items-stretch">
-          {/* Tier 1: Starter (Single Café) */}
-          <div className="bg-white border border-[#DDD5CA] rounded-3xl p-8 space-y-8 flex flex-col justify-between shadow-sm hover:shadow-md transition">
-            <div className="space-y-6">
-              <div>
-                <span className="text-xs uppercase font-extrabold tracking-wider text-stone-500">
-                  Starter Tier
-                </span>
-                <div className="flex items-baseline gap-1 mt-2">
-                  <span className="text-4xl sm:text-5xl font-extrabold font-display text-stone-900">
-                    $0
-                  </span>
-                  <span className="text-sm font-semibold text-stone-500">/ forever</span>
-                </div>
-                <p className="text-xs text-stone-500 mt-2">
-                  Ideal for cafes, single-room popups, and food trucks getting started.
-                </p>
-              </div>
-
-              <div className="pt-4 border-t border-stone-100 space-y-3">
-                <p className="text-xs font-bold text-stone-900 uppercase tracking-wider">
-                  Included Capabilities:
-                </p>
-                <ul className="space-y-3 text-xs text-stone-700">
-                  <li className="flex items-center gap-2.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                    <span>Up to 10 Dining Tables</span>
-                  </li>
-                  <li className="flex items-center gap-2.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                    <span>Unlimited Dishes & Categories</span>
-                  </li>
-                  <li className="flex items-center gap-2.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                    <span>Real-Time Kitchen KDS with Chime Alerts</span>
-                  </li>
-                  <li className="flex items-center gap-2.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                    <span>Multi-Currency (PKR, USD, INR, GBP)</span>
-                  </li>
-                  <li className="flex items-center gap-2.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                    <span>Printable Acrylic Table-Tent QR Stand PDFs</span>
-                  </li>
-                </ul>
-              </div>
+      <section className="py-14 sm:py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="rounded-2xl bg-[#111315] text-white p-8 sm:p-12 text-center space-y-5 border border-stone-800">
+            <h2 className="text-3xl sm:text-4xl font-bold font-display text-white tracking-tight">
+              Ready to turn every table faster?
+            </h2>
+            <p className="text-stone-400 text-sm max-w-xl mx-auto">
+              Launch your contactless menu in under 2 minutes. Free setup with zero proprietary hardware leases.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+              <Link
+                to="/register"
+                className="w-full sm:w-auto px-6 py-3 rounded-xl font-bold bg-white text-stone-900 hover:bg-stone-100 transition text-sm flex items-center justify-center gap-1.5"
+              >
+                Create Free Restaurant Account
+                <ArrowRight className="w-4 h-4 text-amber-500" />
+              </Link>
+              <Link
+                to="/m/table-1-spice-kitchen"
+                className="w-full sm:w-auto px-5 py-3 rounded-xl font-semibold bg-white/10 hover:bg-white/15 text-white border border-white/20 transition text-sm flex items-center justify-center gap-1.5"
+              >
+                <Smartphone className="w-4 h-4 text-emerald-400" />
+                Try Live Demo Menu
+              </Link>
             </div>
-
-            <Link
-              to="/register"
-              className="w-full py-3.5 rounded-xl font-bold bg-[#FAF8F5] hover:bg-stone-200 text-stone-900 text-center text-sm transition shadow-xs border border-[#DDD5CA]"
-            >
-              Launch Free Restaurant
-            </Link>
           </div>
-
-          {/* Tier 2: Growth Pro (Multi-Branch) */}
-          <div className="bg-white border-2 border-emerald-500 rounded-3xl p-8 space-y-8 flex flex-col justify-between shadow-xl relative">
-            <span className="absolute -top-3.5 right-8 bg-emerald-600 text-white text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full shadow-md">
-              Most Popular
-            </span>
-
-            <div className="space-y-6">
-              <div>
-                <span className="text-xs uppercase font-extrabold tracking-wider text-emerald-700">
-                  Growth Pro (Multi-Branch)
-                </span>
-                <div className="flex items-baseline gap-1 mt-2">
-                  <span className="text-4xl sm:text-5xl font-extrabold font-display text-stone-900">
-                    {billingPeriod === "annual" ? "$24" : "$29"}
-                  </span>
-                  <span className="text-sm font-semibold text-stone-500">
-                    / month {billingPeriod === "annual" ? "(billed annually)" : ""}
-                  </span>
-                </div>
-                <p className="text-xs text-stone-500 mt-2">
-                  For high-volume restaurants, multi-room dining venues, and hospitality groups.
-                </p>
-              </div>
-
-              <div className="pt-4 border-t border-stone-100 space-y-3">
-                <p className="text-xs font-bold text-stone-900 uppercase tracking-wider">
-                  Everything in Starter, plus:
-                </p>
-                <ul className="space-y-3 text-xs text-stone-700">
-                  <li className="flex items-center gap-2.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                    <span className="font-semibold text-stone-950">Unlimited Tables & Multi-Branch Management</span>
-                  </li>
-                  <li className="flex items-center gap-2.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                    <span>Staff Role-Based Access (Manager, Kitchen, Waiter PINs)</span>
-                  </li>
-                  <li className="flex items-center gap-2.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                    <span>Live Floor Map & Split-Bill Tracking</span>
-                  </li>
-                  <li className="flex items-center gap-2.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                    <span>1-Click Menu Cloning Across Locations</span>
-                  </li>
-                  <li className="flex items-center gap-2.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                    <span>Order Audit Logs & Peak Hour Analytics</span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-
-            <Link
-              to="/register"
-              className="w-full py-3.5 rounded-xl font-bold bg-[#0B0E14] hover:bg-stone-800 text-white text-center text-sm transition shadow-lg"
-            >
-              Start 14-Day Free Pro Trial
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* ========================================================= */}
-      {/* 7. FULL-BLEED OBSIDIAN CLOSING STAGE & FOOTER             */}
-      {/* ========================================================= */}
-      <section className="bg-[#0B0E14] text-white relative overflow-hidden py-24 sm:py-32">
-        {/* Warm Ambient Glows */}
-        <div className="absolute top-1/2 left-1/3 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-amber-500/10 rounded-full blur-[140px] pointer-events-none" />
-        <div className="absolute top-1/2 right-1/4 -translate-y-1/2 w-[500px] h-[350px] bg-emerald-500/10 rounded-full blur-[140px] pointer-events-none" />
-
-        <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-7">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/15 text-stone-300 text-xs font-semibold">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Instant Hospitality Activation
-          </div>
-
-          <h2 className="text-3xl sm:text-5xl font-bold font-display text-white tracking-tight leading-tight">
-            Ready to turn every table{" "}
-            <span className="font-serif italic font-normal text-amber-400">
-              faster tonight?
-            </span>
-          </h2>
-
-          <p className="text-stone-300 text-sm sm:text-base leading-relaxed max-w-xl mx-auto">
-            Set up your entire digital menu in under 2 minutes. Cut guest table friction by 18 minutes.
-            Keep cooks and floor staff in perfect coordination with zero hardware leases.
-          </p>
-
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
-            <Link
-              to="/register"
-              className="w-full sm:w-auto px-8 py-4 rounded-xl font-bold bg-white hover:bg-stone-100 text-[#0B0E14] text-sm sm:text-base shadow-xl transition-all flex items-center justify-center gap-2 group cursor-pointer"
-            >
-              Create Free Restaurant Account
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </Link>
-            <Link
-              to="/m/table-1-spice-kitchen"
-              className="w-full sm:w-auto px-7 py-4 rounded-xl font-semibold bg-white/10 hover:bg-white/15 text-white border border-white/20 text-sm sm:text-base transition flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Smartphone className="w-4 h-4 text-emerald-400" />
-              Try Live Demo Menu
-            </Link>
-          </div>
-
-          <p className="text-xs text-stone-400 pt-1">
-            No credit card required • Instant setup • Cancel anytime
-          </p>
         </div>
       </section>
 
       {/* ARCHITECTURAL FOOTER */}
-      <footer className="bg-[#0B0E14] border-t border-white/10 text-stone-400 pt-16 pb-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            {/* Col 1: Brand Info */}
-            <div className="space-y-4 md:col-span-1">
-              <Link to="/" className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-white text-[#0B0E14] flex items-center justify-center shadow-xs">
-                  <UtensilsCrossed className="w-4 h-4 text-[#0B0E14]" />
+      <footer className="border-t border-stone-200 bg-white py-12 text-xs text-stone-500">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 text-left">
+            {/* Col 1: Brand & Status */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded bg-[#111315] text-white flex items-center justify-center">
+                  <UtensilsCrossed className="w-3.5 h-3.5 text-amber-400" />
                 </div>
-                <span className="font-display font-extrabold text-lg text-white tracking-tight">
-                  Dineeze
-                </span>
-              </Link>
-              <p className="text-xs text-stone-400 leading-relaxed">
-                Contactless tabletop ordering, digital QR menus, and real-time kitchen displays for
-                high-velocity restaurants.
+                <span className="font-display font-bold text-sm text-[#111315]">Dineeze</span>
+              </div>
+              <p className="text-stone-500 leading-relaxed">
+                Contactless table ordering, digital QR menus, and real-time kitchen display systems.
               </p>
-              <div className="flex items-center gap-2 text-xs text-emerald-400 font-semibold">
+              <div className="flex items-center gap-1.5 text-emerald-700 font-semibold pt-1">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>All Systems Operational (Sockets Active)</span>
+                <span>All Systems Operational</span>
               </div>
             </div>
 
             {/* Col 2: Product */}
-            <div className="space-y-3">
-              <h4 className="font-display font-bold text-xs uppercase tracking-wider text-white">
-                Product
-              </h4>
-              <ul className="space-y-2 text-xs text-stone-400">
+            <div className="space-y-2">
+              <p className="font-bold text-stone-900 uppercase tracking-wider text-[11px]">Product</p>
+              <ul className="space-y-1.5">
                 <li>
-                  <button
-                    onClick={() => scrollToSection("interactive-stage")}
-                    className="hover:text-white transition cursor-pointer"
-                  >
-                    Guest Mobile Menu
+                  <button onClick={() => scrollToSection("product-showcase")} className="hover:text-black">
+                    Mobile Guest Menu
                   </button>
                 </li>
                 <li>
                   <button
-                    onClick={() => scrollToSection("interactive-stage")}
-                    className="hover:text-white transition cursor-pointer"
+                    onClick={() => {
+                      setProductTab("kds");
+                      scrollToSection("product-showcase");
+                    }}
+                    className="hover:text-black"
                   >
                     Kitchen Display (KDS)
                   </button>
                 </li>
                 <li>
                   <button
-                    onClick={() => scrollToSection("table-craft")}
-                    className="hover:text-white transition cursor-pointer"
+                    onClick={() => {
+                      setProductTab("floor");
+                      scrollToSection("product-showcase");
+                    }}
+                    className="hover:text-black"
                   >
-                    Table-Tent QR Stands
+                    Live Floor Status & POS
                   </button>
                 </li>
                 <li>
-                  <button
-                    onClick={() => scrollToSection("pricing")}
-                    className="hover:text-white transition cursor-pointer"
-                  >
+                  <button onClick={() => scrollToSection("pricing-section")} className="hover:text-black">
                     Pricing & Free Plan
                   </button>
                 </li>
               </ul>
             </div>
 
-            {/* Col 3: Hospitality Verticals */}
-            <div className="space-y-3">
-              <h4 className="font-display font-bold text-xs uppercase tracking-wider text-white">
-                Hospitality
-              </h4>
-              <ul className="space-y-2 text-xs text-stone-400">
-                <li className="flex items-center gap-1.5">
-                  <UtensilsCrossed className="w-3.5 h-3.5 text-stone-500" /> Full-Service Bistros
+            {/* Col 3: Operations & Portals */}
+            <div className="space-y-2">
+              <p className="font-bold text-stone-900 uppercase tracking-wider text-[11px]">Portals</p>
+              <ul className="space-y-1.5">
+                <li>
+                  <Link to="/staff-login" className="hover:text-black">
+                    Staff Portal Login
+                  </Link>
                 </li>
-                <li className="flex items-center gap-1.5">
-                  <Coffee className="w-3.5 h-3.5 text-stone-500" /> Specialty Cafés
+                <li>
+                  <Link to="/login" className="hover:text-black">
+                    Owner Login
+                  </Link>
                 </li>
-                <li className="flex items-center gap-1.5">
-                  <Beer className="w-3.5 h-3.5 text-stone-500" /> Craft Breweries & Bars
+                <li>
+                  <Link to="/register" className="hover:text-black">
+                    Register New Restaurant
+                  </Link>
                 </li>
-                <li className="flex items-center gap-1.5">
-                  <Award className="w-3.5 h-3.5 text-stone-500" /> Hotel Room Dining
+                <li>
+                  <Link to="/m/table-1-spice-kitchen" className="hover:text-black">
+                    Customer Menu Demo
+                  </Link>
                 </li>
               </ul>
             </div>
 
             {/* Col 4: Architecture */}
-            <div className="space-y-3">
-              <h4 className="font-display font-bold text-xs uppercase tracking-wider text-white">
-                Architecture
-              </h4>
-              <ul className="space-y-2 text-xs text-stone-400">
-                <li>
-                  <span className="text-stone-300 font-semibold">Postgres:</span> Neon Serverless
-                </li>
-                <li>
-                  <span className="text-stone-300 font-semibold">Sockets:</span> Socket.io Low-Latency
-                </li>
-                <li>
-                  <span className="text-stone-300 font-semibold">Media CDN:</span> Cloudinary SDK
-                </li>
-                <li>
-                  <span className="text-stone-300 font-semibold">Isolation:</span> Strict restaurantId
-                </li>
+            <div className="space-y-2">
+              <p className="font-bold text-stone-900 uppercase tracking-wider text-[11px]">Architecture</p>
+              <ul className="space-y-1 text-stone-500">
+                <li>Strict Tenant restaurantId Isolation</li>
+                <li>Neon Serverless PostgreSQL Lakebase</li>
+                <li>Persistent Socket.io Room Sockets</li>
+                <li className="pt-2 font-semibold text-stone-700">Built by SovYCode</li>
               </ul>
             </div>
           </div>
 
-          {/* Bottom Copyright */}
-          <div className="pt-8 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-stone-500">
+          <div className="pt-6 border-t border-stone-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-stone-400 text-[11px]">
             <p>© {new Date().getFullYear()} Dineeze Inc. All rights reserved.</p>
-            <div className="flex items-center gap-6">
-              <Link to="/staff-login" className="hover:text-stone-300 transition">
-                Staff Portal
-              </Link>
-              <Link to="/login" className="hover:text-stone-300 transition">
-                Owner Login
-              </Link>
-              <Link to="/register" className="hover:text-stone-300 transition">
-                Get Started
-              </Link>
-              <Link to="/m/table-1-spice-kitchen" className="hover:text-stone-300 transition">
-                Customer Demo
-              </Link>
-            </div>
+            <p>Designed with editorial hospitality craft.</p>
           </div>
         </div>
       </footer>
