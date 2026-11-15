@@ -127,12 +127,20 @@ export const LoginPage: React.FC = () => {
           </div>
         </div>
 
-        <p className="text-center text-xs text-slate-500 mt-6">
-          Don't have a restaurant account?{" "}
-          <Link to="/register" className="font-semibold text-accent hover:underline">
-            Register your restaurant free
-          </Link>
-        </p>
+        <div className="mt-6 text-center space-y-2">
+          <p className="text-xs text-slate-500">
+            Don't have a restaurant account?{" "}
+            <Link to="/register" className="font-semibold text-accent hover:underline">
+              Register your restaurant free
+            </Link>
+          </p>
+          <p className="text-xs text-slate-500">
+            Are you a team member?{" "}
+            <Link to="/staff-login" className="font-semibold text-slate-700 hover:text-accent transition">
+              Sign in via Staff Portal &rarr;
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

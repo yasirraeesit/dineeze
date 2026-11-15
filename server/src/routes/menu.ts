@@ -434,7 +434,7 @@ router.post("/seed-sample", verifyRestaurantOwner, validateBody(seedSampleSchema
       });
 
       return [cat1, cat2, cat3];
-    });
+    }, { maxWait: 15000, timeout: 30000 });
 
     return res.status(201).json({
       success: true,

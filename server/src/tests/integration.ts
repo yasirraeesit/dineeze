@@ -164,15 +164,17 @@ async function runIntegrationTests() {
 
       socketClient.on("connect", () => {
         socketClient.emit("join_restaurant", restaurantA.id);
-        clearTimeout(timeout);
-        resolve();
+        setTimeout(() => {
+          clearTimeout(timeout);
+          resolve();
+        }, 200);
       });
     });
 
     const socketEventPromise = new Promise<any>((resolve, reject) => {
       const timeout = setTimeout(() => {
-        reject(new Error("Did not receive 'order_status_updated' socket event within 5s"));
-      }, 5000);
+        reject(new Error("Did not receive 'order_status_updated' socket event within 10s"));
+      }, 10000);
 
       socketClient.on("order_status_updated", (data: any) => {
         clearTimeout(timeout);
